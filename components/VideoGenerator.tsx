@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useVeoApiKey } from '../hooks/useVeoApiKey';
-import { generateVideo, pollVideoStatus, generateSpeech } from '../services/geminiService';
+import { generateVideo, pollVideoStatus, generateSpeech, generateVideoViaPuter } from '../services/geminiService';
 import { fileToBase64 } from '../utils/fileUtils';
 import { decode, decodeAudioData, getAudioContext, playAudio } from '../utils/audioUtils';
 import Button from './Button';
 import { Spinner, UploadIcon, XIcon, SpeakerIcon } from './Icons';
+import VeoInfo from './VeoInfo';
+import VeoTester from './VeoTester';
+import VeoForceCall from './VeoForceCall';
 
 const loadingMessages = [
   "Brewing pixels into a masterpiece...",
@@ -20,6 +23,8 @@ const VideoGenerator: React.FC = () => {
   const { isKeySelected, isChecking, selectKey, resetKey } = useVeoApiKey();
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [veoModel, setVeoModel] = useState<'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview'>('veo-3.1-fast-generate-preview');
+  const [generationMethod, setGenerationMethod] = useState<'direct' | 'puter'>('direct');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -121,11 +126,19 @@ const VideoGenerator: React.FC = () => {
     setGeneratedVideoUrl(null);
 
     try {
+      if (generationMethod === 'puter') {
+        // Use Puter.js method for video generation
+        const result = await generateVideoViaPuter(prompt, aspectRatio);
+        setError(`Puter.js Response: ${result}`);
+        return;
+      }
+
+      // Direct API method
       const imagePayload = imageBase64 && imageFile
           ? { imageBytes: imageBase64, mimeType: imageFile.type }
           : undefined;
       
-      let operation = await generateVideo(prompt, aspectRatio, imagePayload);
+      let operation = await generateVideo(prompt, aspectRatio, imagePayload, veoModel);
       
       while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -187,6 +200,14 @@ const VideoGenerator: React.FC = () => {
       </div>
       <p className="text-gray-400 mb-6">Create high-quality videos from text or an image using Veo 3. Paste an image anywhere to get started.</p>
       
+      <VeoInfo />
+      
+      <VeoTester onTestComplete={(method, result) => {
+        console.log(`Test completed for ${method}:`, result);
+      }} />
+      
+      <VeoForceCall />
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-4 flex flex-col">
               <div>
@@ -201,17 +222,58 @@ const VideoGenerator: React.FC = () => {
                       disabled={isLoading}
                   />
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                      <label className="font-medium text-sm text-gray-300">Aspect Ratio:</label>
+                      <select
+                          value={aspectRatio}
+                          onChange={(e) => setAspectRatio(e.target.value as '16:9' | '9:16')}
+                          className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
+                          disabled={isLoading}
+                      >
+                          <option value="16:9">16:9 (Landscape)</option>
+                          <option value="9:16">9:16 (Portrait)</option>
+                      </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                      <label className="font-medium text-sm text-gray-300">Veo Model:</label>
+                      <select
+                          value={veoModel}
+                          onChange={(e) => setVeoModel(e.target.value as 'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview')}
+                          className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
+                          disabled={isLoading}
+                      >
+                          <option value="veo-3.1-fast-generate-preview">Veo 3.1 Fast (720p)</option>
+                          <option value="veo-3.1-generate-preview">Veo 3.1 Standard (1080p)</option>
+                      </select>
+                  </div>
+              </div>
               <div className="flex items-center gap-4">
-                  <label className="font-medium text-sm text-gray-300">Aspect Ratio:</label>
-                  <select
-                      value={aspectRatio}
-                      onChange={(e) => setAspectRatio(e.target.value as '16:9' | '9:16')}
-                      className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
-                      disabled={isLoading}
-                  >
-                      <option value="16:9">16:9 (Landscape)</option>
-                      <option value="9:16">9:16 (Portrait)</option>
-                  </select>
+                  <label className="font-medium text-sm text-gray-300">Generation Method:</label>
+                  <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm text-gray-300">
+                          <input
+                              type="radio"
+                              value="direct"
+                              checked={generationMethod === 'direct'}
+                              onChange={(e) => setGenerationMethod(e.target.value as 'direct' | 'puter')}
+                              className="text-gemini-blue focus:ring-gemini-blue"
+                              disabled={isLoading}
+                          />
+                          Direct API (Recommended)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-300">
+                          <input
+                              type="radio"
+                              value="puter"
+                              checked={generationMethod === 'puter'}
+                              onChange={(e) => setGenerationMethod(e.target.value as 'direct' | 'puter')}
+                              className="text-gemini-blue focus:ring-gemini-blue"
+                              disabled={isLoading}
+                          />
+                          Via Puter.js (Experimental)
+                      </label>
+                  </div>
               </div>
           </div>
           <div className="space-y-2">

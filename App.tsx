@@ -7,6 +7,7 @@ import ImageGenerator from './components/ImageGenerator';
 import FastChat from './components/FastChat';
 import TextToSpeech from './components/TextToSpeech';
 import { VideoIcon, FilmIcon, ImageIcon, SparklesIcon, MessageIcon, SoundWaveIcon } from './components/Icons';
+import AutopilotToggle from './components/AutopilotToggle';
 
 type Tab = 'video-gen' | 'video-analyze' | 'image-gen' | 'image-edit' | 'tts' | 'chat';
 
@@ -49,6 +50,7 @@ const App: React.FC = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               Gemini <span className="text-gemini-blue">Creative Suite</span>
             </h1>
+            <AutopilotToggle />
           </div>
         </div>
       </header>

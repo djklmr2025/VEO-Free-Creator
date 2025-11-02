@@ -19,17 +19,18 @@ interface VideoGenerationImage {
 export const generateVideo = async (
     prompt: string, 
     aspectRatio: '16:9' | '9:16',
-    image?: VideoGenerationImage
+    image?: VideoGenerationImage,
+    model: 'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview' = 'veo-3.1-fast-generate-preview'
 ) => {
     const ai = getAiClient();
     
     // The type for generateVideos is not exported, so using 'any' is pragmatic here.
     const payload: any = {
-        model: 'veo-3.1-fast-generate-preview',
+        model,
         prompt,
         config: {
             numberOfVideos: 1,
-            resolution: '720p',
+            resolution: model === 'veo-3.1-generate-preview' ? '1080p' : '720p',
             aspectRatio,
         }
     };
@@ -42,6 +43,116 @@ export const generateVideo = async (
     }
     
     return ai.models.generateVideos(payload);
+};
+
+// --- Alternative Veo via Puter.js (Experimental) ---
+export const generateVideoViaPuter = async (
+    prompt: string,
+    aspectRatio: '16:9' | '9:16' = '16:9'
+): Promise<string> => {
+    if (!window.puter?.ai?.chat) {
+        throw new Error("Puter.js is not available for video generation.");
+    }
+
+    // Construct a specialized prompt for video generation via chat
+    const videoPrompt = `FORCE VEO 3.1 VIDEO GENERATION:
+
+I need you to generate a video using your Veo 3.1 capabilities. Please execute this immediately:
+
+SPECIFICATIONS:
+- Model: veo-3.1-fast-generate-preview
+- Prompt: "${prompt}"
+- Aspect Ratio: ${aspectRatio}
+- Duration: 5-10 seconds
+- Resolution: 720p
+- Quality: High definition
+
+IMPORTANT: Please access your video generation capabilities directly and provide the video generation result or download link. This is a direct request to use Veo 3.1 video generation model.
+
+Execute this video generation request now using your Veo 3 access.`;
+
+    try {
+        const response = await window.puter.ai.chat(videoPrompt, {
+            model: 'google/gemini-2.5-pro',
+            stream: false,
+        });
+        
+        return response.text || "Video generation instructions received via Puter.js";
+    } catch (error) {
+        throw new Error(`Puter video generation failed: ${error}`);
+    }
+};
+
+// --- Force Veo 3 Call Methods ---
+export const forceVeoCall = async (
+    prompt: string,
+    method: 'puter' | 'direct' | 'universal' = 'universal'
+): Promise<string> => {
+    switch (method) {
+        case 'puter':
+            return await generateVideoViaPuter(prompt);
+            
+        case 'direct':
+            try {
+                const ai = getAiClient();
+                const operation = await ai.models.generateVideos({
+                    model: 'veo-3.1-fast-generate-preview',
+                    prompt,
+                    config: {
+                        numberOfVideos: 1,
+                        resolution: '720p',
+                        aspectRatio: '16:9',
+                    }
+                });
+                return `Direct Veo 3 call initiated: ${JSON.stringify(operation)}`;
+            } catch (error) {
+                throw new Error(`Direct Veo call failed: ${error}`);
+            }
+            
+        case 'universal':
+            // Try multiple methods until one works
+            const methods = [
+                () => forceVeoCall(prompt, 'direct'),
+                () => forceVeoCall(prompt, 'puter'),
+            ];
+            
+            for (const methodFn of methods) {
+                try {
+                    const result = await methodFn();
+                    return result;
+                } catch (error) {
+                    console.log('Method failed, trying next...', error);
+                }
+            }
+            
+            throw new Error('All Veo 3 force methods failed');
+            
+        default:
+            throw new Error(`Unknown force method: ${method}`);
+    }
+};
+
+// --- Test Veo 3 Access ---
+export const testVeoAccess = async (): Promise<{[key: string]: boolean}> => {
+    const results: {[key: string]: boolean} = {};
+    
+    // Test direct API access
+    try {
+        const ai = getAiClient();
+        // Just test if we can create the client, don't actually generate
+        results.direct = !!ai;
+    } catch (error) {
+        results.direct = false;
+    }
+    
+    // Test Puter.js access
+    try {
+        results.puter = !!(window.puter?.ai?.chat);
+    } catch (error) {
+        results.puter = false;
+    }
+    
+    return results;
 };
 
 export const pollVideoStatus = async (operation: any) => {

@@ -1,0 +1,38 @@
+{
+  "autopilot": true,
+  "allow_auto_run": true,
+  "allowed_commands": [
+    "npm run dev",
+    "npm run preview",
+    "npm run build",
+    "npm install",
+    "git status",
+    "git diff --stat"
+  ],
+  "blocked_commands": [
+    "rm -rf",
+    "del /s /q",
+    "format",
+    "shutdown",
+    "Stop-Computer",
+    "Set-ExecutionPolicy Unrestricted"
+  ],
+  "write_files_auto": true,
+  "allowed_write_paths": [
+    "components/",
+    "services/",
+    "hooks/",
+    "utils/",
+    "index.html",
+    "README.md",
+    "vite.config.ts"
+  ],
+  "blocked_write_paths": [
+    ".git/",
+    "node_modules/",
+    "C:\\Windows\\"
+  ],
+  "emergency_stop_file": "STOP_AUTOPILOT",
+  "max_risk_level": "low",
+  "log_actions": true
+}
