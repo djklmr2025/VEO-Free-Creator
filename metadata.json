@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Creative Suite",
+  "description": "An all-in-one web application leveraging the Gemini API for advanced video generation (Veo 3), video analysis, image generation and editing, and a low-latency chat experience.",
+  "requestFramePermissions": []
+}

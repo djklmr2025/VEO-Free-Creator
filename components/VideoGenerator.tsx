@@ -1,0 +1,273 @@
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useVeoApiKey } from '../hooks/useVeoApiKey';
+import { generateVideo, pollVideoStatus, generateSpeech } from '../services/geminiService';
+import { fileToBase64 } from '../utils/fileUtils';
+import { decode, decodeAudioData, getAudioContext, playAudio } from '../utils/audioUtils';
+import Button from './Button';
+import { Spinner, UploadIcon, XIcon, SpeakerIcon } from './Icons';
+
+const loadingMessages = [
+  "Brewing pixels into a masterpiece...",
+  "Choreographing digital actors...",
+  "Rendering virtual worlds...",
+  "This can take a few minutes, hang tight!",
+  "Assembling the final cut...",
+  "Adding a touch of cinematic magic..."
+];
+
+const VideoGenerator: React.FC = () => {
+  const { isKeySelected, isChecking, selectKey, resetKey } = useVeoApiKey();
+  const [prompt, setPrompt] = useState('');
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0]);
+  const [isGreetingLoading, setIsGreetingLoading] = useState(false);
+  const [hasAutoPlayedGreeting, setHasAutoPlayedGreeting] = useState(false);
+
+  const playGreeting = useCallback(async () => {
+    setIsGreetingLoading(true);
+    try {
+        const greetingText = "Bienvenido, ¿qué video deseas crear hoy?";
+        const base64Audio = await generateSpeech(greetingText, 'Kore');
+        const audioBytes = decode(base64Audio);
+        const audioContext = getAudioContext();
+        const audioBuffer = await decodeAudioData(audioBytes, audioContext, 24000, 1);
+        playAudio(audioBuffer);
+    } catch (err) {
+        console.error("Failed to play greeting:", err);
+    } finally {
+        setIsGreetingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isKeySelected && !hasAutoPlayedGreeting) {
+        playGreeting();
+        setHasAutoPlayedGreeting(true);
+    }
+  }, [isKeySelected, hasAutoPlayedGreeting, playGreeting]);
+
+  useEffect(() => {
+    let interval: number;
+    if (isLoading) {
+      interval = window.setInterval(() => {
+        setLoadingMessage(prev => {
+          const currentIndex = loadingMessages.indexOf(prev);
+          return loadingMessages[(currentIndex + 1) % loadingMessages.length];
+        });
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  const handleFile = useCallback(async (file: File) => {
+    if (file && file.type.startsWith('image/')) {
+      setImageFile(file);
+      const base64 = await fileToBase64(file);
+      setImageBase64(base64);
+      setError(null);
+    } else {
+      setError('Pasted content is not a valid image file.');
+    }
+  }, []);
+
+  const handlePaste = useCallback((event: ClipboardEvent) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          handleFile(file);
+          event.preventDefault();
+          break;
+        }
+      }
+    }
+  }, [handleFile]);
+
+  useEffect(() => {
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [handlePaste]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFile(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImageBase64(null);
+  };
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() && !imageFile) {
+      setError("Please enter a prompt or provide an image.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setGeneratedVideoUrl(null);
+
+    try {
+      const imagePayload = imageBase64 && imageFile
+          ? { imageBytes: imageBase64, mimeType: imageFile.type }
+          : undefined;
+      
+      let operation = await generateVideo(prompt, aspectRatio, imagePayload);
+      
+      while (!operation.done) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        operation = await pollVideoStatus(operation);
+      }
+
+      if (operation.response?.generatedVideos?.[0]?.video?.uri) {
+        const downloadLink = operation.response.generatedVideos[0].video.uri;
+        const videoResponse = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+        
+        if (!videoResponse.ok) {
+            throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+        }
+
+        const videoBlob = await videoResponse.blob();
+        setGeneratedVideoUrl(URL.createObjectURL(videoBlob));
+      } else {
+        throw new Error("Video generation failed or returned no video URI.");
+      }
+    } catch (err: any) {
+        const errorMessage = err.message || "An unknown error occurred.";
+        setError(`Error: ${errorMessage}`);
+        if (errorMessage.includes("Requested entity was not found.")) {
+            setError("API Key not found or invalid. Please select your API key again.");
+            resetKey();
+        }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isChecking) {
+    return <div className="flex items-center justify-center h-48"><Spinner className="h-8 w-8"/></div>;
+  }
+  
+  if (!isKeySelected) {
+    return (
+        <div className="text-center p-8 bg-gray-800 rounded-lg">
+            <h2 className="text-2xl font-bold mb-4">API Key Required for Veo</h2>
+            <p className="mb-6 text-gray-400">Video generation with Veo requires you to select an API key. This helps manage project billing.</p>
+            <p className="mb-6 text-xs text-gray-500">For more info, see the <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-gemini-blue underline">billing documentation</a>.</p>
+            <Button onClick={selectKey}>Select API Key</Button>
+        </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-1">
+          <h2 className="text-3xl font-bold text-white">Veo Video Generation</h2>
+          <button 
+              onClick={playGreeting} 
+              disabled={isGreetingLoading} 
+              className="text-gray-400 hover:text-white disabled:text-gray-600 transition-colors"
+              aria-label="Play greeting"
+          >
+              {isGreetingLoading ? <Spinner className="h-5 w-5 animate-spin" /> : <SpeakerIcon className="h-5 w-5"/>}
+          </button>
+      </div>
+      <p className="text-gray-400 mb-6">Create high-quality videos from text or an image using Veo 3. Paste an image anywhere to get started.</p>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-4 flex flex-col">
+              <div>
+                  <label htmlFor="prompt-textarea" className="block text-sm font-medium text-gray-300 mb-2">Prompt</label>
+                  <textarea
+                      id="prompt-textarea"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="e.g., A neon hologram of a cat driving at top speed"
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-gemini-blue focus:outline-none transition"
+                      rows={7}
+                      disabled={isLoading}
+                  />
+              </div>
+              <div className="flex items-center gap-4">
+                  <label className="font-medium text-sm text-gray-300">Aspect Ratio:</label>
+                  <select
+                      value={aspectRatio}
+                      onChange={(e) => setAspectRatio(e.target.value as '16:9' | '9:16')}
+                      className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
+                      disabled={isLoading}
+                  >
+                      <option value="16:9">16:9 (Landscape)</option>
+                      <option value="9:16">9:16 (Portrait)</option>
+                  </select>
+              </div>
+          </div>
+          <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-300">Optional: Start with an image</label>
+              {!imageBase64 ? (
+                  <div className="flex justify-center items-center h-full px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
+                      <div className="space-y-1 text-center">
+                          <UploadIcon className="mx-auto h-12 w-12 text-gray-500" />
+                          <div className="flex text-sm text-gray-400">
+                              <label htmlFor="image-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-gemini-blue hover:text-gemini-blue/80 focus-within:outline-none">
+                                  <span>Upload a file</span>
+                                  <input id="image-upload" name="image-upload" type="file" className="sr-only" accept="image/*" onChange={handleFileChange} disabled={isLoading} />
+                              </label>
+                              <p className="pl-1">or drag and drop</p>
+                          </div>
+                          <p className="text-xs text-gray-500">or paste an image (Ctrl+V)</p>
+                      </div>
+                  </div>
+              ) : (
+                  <div className="relative">
+                      <img src={`data:${imageFile?.type};base64,${imageBase64}`} alt="Uploaded preview" className="w-full h-auto object-contain max-h-64 rounded-lg shadow-md" />
+                      <button
+                          onClick={removeImage}
+                          className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/80 transition-colors"
+                          aria-label="Remove image"
+                      >
+                          <XIcon className="h-5 w-5" />
+                      </button>
+                  </div>
+              )}
+          </div>
+      </div>
+
+      <div className="mt-6">
+          <Button onClick={handleGenerate} isLoading={isLoading} disabled={isLoading || (!prompt.trim() && !imageFile)}>
+              {isLoading ? 'Generating...' : 'Generate Video'}
+          </Button>
+      </div>
+
+      {error && <div className="mt-4 p-3 bg-red-900/50 text-red-300 border border-red-700 rounded-lg">{error}</div>}
+
+      {isLoading && (
+          <div className="mt-6 text-center p-8 bg-gray-900/50 rounded-lg">
+              <Spinner className="h-12 w-12 mx-auto animate-spin text-gemini-blue"/>
+              <p className="mt-4 font-medium text-lg">{loadingMessage}</p>
+          </div>
+      )}
+      
+      {generatedVideoUrl && (
+        <div className="mt-6">
+          <h3 className="text-xl font-semibold mb-4">Generated Video:</h3>
+          <video src={generatedVideoUrl} controls autoPlay loop className="w-full rounded-lg shadow-lg" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default VideoGenerator;
