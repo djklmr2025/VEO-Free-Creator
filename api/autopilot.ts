@@ -58,7 +58,9 @@ async function writeEnabled(enabled: boolean, forceStop = false): Promise<boolea
             'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(data),
+          // Upstash/Vercel KV expects a JSON object with a `value` field
+          // that contains the stringified value to store.
+          body: JSON.stringify({ value: JSON.stringify(data) }),
         });
       } catch (kvError) {
         console.warn('KV write failed, using file fallback:', kvError);

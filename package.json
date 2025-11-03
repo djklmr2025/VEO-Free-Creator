@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "autopilot": "node server/autopilotServer.cjs"
+    "autopilot": "node server/autopilotServer.cjs",
+    "kv:health:prod": "node scripts/kvHealthCheck.cjs --url https://veo-free-creator.vercel.app/api/kv-health"
   },
   "dependencies": {
     "react": "^19.2.0",

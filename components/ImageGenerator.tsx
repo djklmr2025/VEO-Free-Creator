@@ -1,16 +1,23 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { generateImage } from '../services/geminiService';
 import Button from './Button';
 
-const ImageGenerator: React.FC = () => {
+type ImageGeneratorProps = {
+  defaultPrompt?: string;
+  autoGenerate?: boolean;
+};
+
+const ImageGenerator: React.FC<ImageGeneratorProps> = ({ defaultPrompt, autoGenerate }) => {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hasAutoRunRef = useRef(false);
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
+  const handleGenerate = async (overridePrompt?: string) => {
+    const finalPrompt = overridePrompt ?? prompt;
+    if (!finalPrompt.trim()) {
       setError("Please enter a prompt.");
       return;
     }
@@ -19,7 +26,7 @@ const ImageGenerator: React.FC = () => {
     setImageUrl(null);
 
     try {
-      const response = await generateImage(prompt);
+      const response = await generateImage(finalPrompt);
       if (response.generatedImages && response.generatedImages.length > 0) {
         const base64Image = response.generatedImages[0].image.imageBytes;
         setImageUrl(`data:image/jpeg;base64,${base64Image}`);
@@ -32,6 +39,25 @@ const ImageGenerator: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Sync prompt from external defaultPrompt
+  useEffect(() => {
+    if (defaultPrompt) {
+      setPrompt(defaultPrompt);
+    }
+  }, [defaultPrompt]);
+
+  // Auto-generate once when instructed
+  useEffect(() => {
+    if (autoGenerate && defaultPrompt && !hasAutoRunRef.current) {
+      hasAutoRunRef.current = true;
+      const run = async () => {
+        await new Promise(r => setTimeout(r, 0));
+        handleGenerate(defaultPrompt);
+      };
+      run();
+    }
+  }, [autoGenerate, defaultPrompt]);
 
   return (
     <div>

@@ -65,6 +65,25 @@ Una suite completa de herramientas de IA creativa que incluye generación de vid
 3. **Variables de entorno:**
    - Añade: `GEMINI_API_KEY` con tu clave de API
 
+## 🗄️ Storage / KV (Persistencia del estado Autopilot)
+
+- Se usa REST KV; los valores (`KV_REST_API_URL`, `KV_REST_API_TOKEN`) son inyectados por Vercel Storage al conectar la base con el proyecto desde la sección "Storage → Connect Project".
+- Si por alguna razón no aparecen automáticamente, copia los valores desde la sección "REST API" de tu base en Vercel Storage y añádelos como variables de entorno del proyecto (production/preview/development).
+- Tras agregar o cambiar variables, realiza un redeploy para que el runtime las lea.
+
+Prueba rápida:
+- POST `https://<tu-app>.vercel.app/api/autopilot` con body `{ "enabled": true }`, luego GET `https://<tu-app>.vercel.app/api/autopilot` y verifica que persiste.
+- POST para apagar con corte limpio: `{ "enabled": false, "forceStop": true }`.
+
+Health-check:
+- Endpoint: `GET /api/kv-health` (se crea en este repo)
+- Realiza un set/get de prueba en KV y devuelve un JSON con el resultado.
+
+Buenas prácticas de seguridad:
+- Rotar `KV_REST_API_TOKEN` periódicamente y revocar el anterior después de validar.
+- Limitar targets si no necesitas KV en development.
+- Evitar exponer tokens en logs o respuestas; este proyecto no imprime secretos.
+
 4. **Deploy:**
    - Haz clic en "Deploy"
    - Tu app estará disponible en una URL pública

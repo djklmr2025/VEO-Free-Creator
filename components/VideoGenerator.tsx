@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useVeoApiKey } from '../hooks/useVeoApiKey';
 import { generateVideo, pollVideoStatus, generateSpeech, generateVideoViaPuter } from '../services/geminiService';
 import { fileToBase64 } from '../utils/fileUtils';
@@ -19,7 +19,13 @@ const loadingMessages = [
   "Adding a touch of cinematic magic..."
 ];
 
-const VideoGenerator: React.FC = () => {
+type VideoGeneratorProps = {
+  defaultPrompt?: string;
+  autoGenerate?: boolean;
+  onResult?: (result: { videoUrl: string; sourceUri: string; prompt: string }) => void;
+};
+
+const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGenerate, onResult }) => {
   const { isKeySelected, isChecking, selectKey, resetKey } = useVeoApiKey();
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -33,6 +39,7 @@ const VideoGenerator: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0]);
   const [isGreetingLoading, setIsGreetingLoading] = useState(false);
   const [hasAutoPlayedGreeting, setHasAutoPlayedGreeting] = useState(false);
+  const hasAutoRunRef = useRef(false);
 
   const playGreeting = useCallback(async () => {
     setIsGreetingLoading(true);
@@ -116,8 +123,9 @@ const VideoGenerator: React.FC = () => {
     setImageBase64(null);
   };
 
-  const handleGenerate = async () => {
-    if (!prompt.trim() && !imageFile) {
+  const handleGenerate = async (overridePrompt?: string) => {
+    const finalPrompt = overridePrompt ?? prompt;
+    if (!finalPrompt.trim() && !imageFile) {
       setError("Please enter a prompt or provide an image.");
       return;
     }
@@ -128,7 +136,7 @@ const VideoGenerator: React.FC = () => {
     try {
       if (generationMethod === 'puter') {
         // Use Puter.js method for video generation
-        const result = await generateVideoViaPuter(prompt, aspectRatio);
+        const result = await generateVideoViaPuter(finalPrompt, aspectRatio);
         setError(`Puter.js Response: ${result}`);
         return;
       }
@@ -138,7 +146,7 @@ const VideoGenerator: React.FC = () => {
           ? { imageBytes: imageBase64, mimeType: imageFile.type }
           : undefined;
       
-      let operation = await generateVideo(prompt, aspectRatio, imagePayload, veoModel);
+      let operation = await generateVideo(finalPrompt, aspectRatio, imagePayload, veoModel);
       
       while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -146,15 +154,18 @@ const VideoGenerator: React.FC = () => {
       }
 
       if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-        const downloadLink = operation.response.generatedVideos[0].video.uri;
-        const videoResponse = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-        
+        const sourceUri = operation.response.generatedVideos[0].video.uri;
+        // Descargar a través del proxy seguro
+        const proxiedUrl = `/api/fetchVideo?uri=${encodeURIComponent(sourceUri)}`;
+        const videoResponse = await fetch(proxiedUrl);
         if (!videoResponse.ok) {
-            throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+          throw new Error(`Failed to download video: ${videoResponse.statusText}`);
         }
-
         const videoBlob = await videoResponse.blob();
-        setGeneratedVideoUrl(URL.createObjectURL(videoBlob));
+        const objectUrl = URL.createObjectURL(videoBlob);
+        setGeneratedVideoUrl(objectUrl);
+        // Comunicar resultado a la app (para el chat del agente)
+        onResult?.({ videoUrl: objectUrl, sourceUri, prompt: finalPrompt });
       } else {
         throw new Error("Video generation failed or returned no video URI.");
       }
@@ -169,6 +180,25 @@ const VideoGenerator: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Sync prompt from external defaultPrompt
+  useEffect(() => {
+    if (defaultPrompt) {
+      setPrompt(defaultPrompt);
+    }
+  }, [defaultPrompt]);
+
+  // Auto-generate once when instructed and key is selected
+  useEffect(() => {
+    if (autoGenerate && defaultPrompt && isKeySelected && !hasAutoRunRef.current) {
+      hasAutoRunRef.current = true;
+      const run = async () => {
+        await new Promise(r => setTimeout(r, 0));
+        handleGenerate(defaultPrompt);
+      };
+      run();
+    }
+  }, [autoGenerate, defaultPrompt, isKeySelected]);
 
   if (isChecking) {
     return <div className="flex items-center justify-center h-48"><Spinner className="h-8 w-8"/></div>;
@@ -326,6 +356,14 @@ const VideoGenerator: React.FC = () => {
         <div className="mt-6">
           <h3 className="text-xl font-semibold mb-4">Generated Video:</h3>
           <video src={generatedVideoUrl} controls autoPlay loop className="w-full rounded-lg shadow-lg" />
+          <div className="mt-3 text-sm text-gray-300 flex items-center gap-4">
+            <a href={generatedVideoUrl} target="_blank" rel="noopener noreferrer" className="text-gemini-blue underline">Open in new tab</a>
+            {/* Provide the original URI for debugging/traceability (may require auth) */}
+            <button
+              onClick={() => navigator.clipboard.writeText((generatedVideoUrl || '') as string)}
+              className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600"
+            >Copy player URL</button>
+          </div>
         </div>
       )}
     </div>

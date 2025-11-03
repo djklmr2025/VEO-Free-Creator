@@ -1,13 +1,27 @@
 
 import { GoogleGenAI, GenerateContentResponse, Chat, Modality, Type } from "@google/genai";
 
+// Resolve API key safely for different environments (Vite client vs serverless)
+const resolveApiKey = (): string => {
+    // Prefer Vite client-side env var
+    const viteEnv: any = (typeof import.meta !== 'undefined' && (import.meta as any).env) ? (import.meta as any).env : {};
+    const viteKey = viteEnv.VITE_GEMINI_API_KEY || viteEnv.VITE_API_KEY;
+
+    // Fallback to Node/Vercel serverless env vars (only available server-side)
+    const nodeKey = (typeof process !== 'undefined' && process.env) ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : undefined;
+
+    const key = viteKey || nodeKey;
+    if (!key) {
+        throw new Error("Gemini API key not set. Configure VITE_GEMINI_API_KEY (client) or GEMINI_API_KEY (server).");
+    }
+    return key;
+};
+
 // This function creates a new instance on demand.
 // Crucial for Veo to pick up the latest API key after user selection.
 const getAiClient = () => {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY environment variable not set");
-    }
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = resolveApiKey();
+    return new GoogleGenAI({ apiKey });
 };
 
 interface VideoGenerationImage {
@@ -235,4 +249,29 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
         throw new Error("Failed to generate speech audio.");
     }
     return base64Audio;
+};
+
+// --- Generic Text Generation (for agent responses) ---
+export const generateContent = async (prompt: string): Promise<string> => {
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: [{ parts: [{ text: prompt }] }],
+    });
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return text;
+};
+
+// --- Aggregated Service (compatibility for components expecting `geminiService`) ---
+export const geminiService = {
+    generateContent,
+    generateVideo,
+    analyzeVideo,
+    generateImage,
+    editImage,
+    generateSpeech,
+    pollVideoStatus,
+    forceVeoCall,
+    generateVideoViaPuter,
+    testVeoAccess,
 };

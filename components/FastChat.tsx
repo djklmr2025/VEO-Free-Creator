@@ -3,7 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { SendIcon } from './Icons';
 
-const FastChat: React.FC = () => {
+type Intent = { type: 'video' | 'image'; prompt?: string; autoGenerate?: boolean };
+type FastChatProps = { onIntent?: (intent: Intent) => void };
+
+const FastChat: React.FC<FastChatProps> = ({ onIntent }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,12 +22,33 @@ const FastChat: React.FC = () => {
     chatContainerRef.current?.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
+  const detectIntent = (text: string): Intent | undefined => {
+    const lower = text.toLowerCase();
+    const videoMatches = [
+      'video', 'veo', 'clip', 'animación', 'animacion', 'render de video', 'generar video', 'hacer un video'
+    ].some(k => lower.includes(k));
+    const imageMatches = [
+      'imagen', 'image', 'foto', 'picture', 'dibujo', 'generar imagen', 'hacer una imagen'
+    ].some(k => lower.includes(k));
+
+    if (videoMatches) return { type: 'video', prompt: text, autoGenerate: true };
+    if (imageMatches) return { type: 'image', prompt: text, autoGenerate: true };
+    return undefined;
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userMessage: ChatMessage = { id: Date.now().toString(), role: 'user', text: input };
     setMessages(prev => [...prev, userMessage]);
+
+    // Detect quick intent locally to route the user immediately
+    const intent = detectIntent(input);
+    if (intent && onIntent) {
+      onIntent(intent);
+    }
+
     setInput('');
     setIsLoading(true);
 
@@ -59,7 +83,7 @@ const FastChat: React.FC = () => {
             )
         );
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
