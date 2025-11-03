@@ -6,6 +6,7 @@ import VideoGenerator from './components/VideoGenerator';
 import ImageGenerator from './components/ImageGenerator';
 import { VideoAgent } from './components/VideoAgent';
 import { InternalLab } from './components/InternalLab';
+import ApiDiagnostics from './components/ApiDiagnostics';
 import { LanguageSelector } from './components/LanguageSelector';
 import AutopilotToggle from './components/AutopilotToggle';
 
@@ -157,6 +158,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, setActiveTab }
     { id: 'agent', label: 'Video Agent', icon: '🤖', highlight: true },
     { id: 'video', label: 'Video Generator', icon: '🎬' },
     { id: 'image', label: 'Image Generator', icon: '🖼️' },
+    { id: 'diagnostics', label: 'Diagnostics', icon: '🩺' },
   ];
 
   return (
@@ -225,6 +227,8 @@ const TabContent: React.FC<TabContentProps> = ({
           autoGenerate={imagePrefill?.autoGenerate}
         />
       );
+    case 'diagnostics':
+      return <ApiDiagnostics />;
     default:
       return <FastChat onIntent={onIntent} />;
   }
