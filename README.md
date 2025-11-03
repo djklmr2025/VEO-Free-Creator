@@ -1,5 +1,5 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github-production-user-asset-6210df.s3.amazonaws.com/159876365/477138731-0aa67016-6eaf-458a-adb2-6e31a0763ed6.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20251103%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251103T032345Z&X-Amz-Expires=300&X-Amz-Signature=cdcc25d3d54f43b3ab418cb7d0ceb20a2154d95f432463dc6da718dc287b3a2c&X-Amz-SignedHeaders=host"/>(https://ai.studio/apps/drive/1SkkL3Jt-wAZ9w4P_eotsUxioAJ5IVxX8)
+<img width="1200" height="475" alt="GHBanner" src="https://github-production-user-asset-6210df.s3.amazonaws.com/159876365/477138731-0aa67016-6eaf-458a-adb2-6e31a0763ed6.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20251103%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251103T032345Z&X-Amz-Expires=300&X-Amz-Signature=cdcc25d3d54f43b3ab418cb7d0ceb20a2154d95f432463dc6da718dc287b3a2c&X-Amz-SignedHeaders=host"/> "[(https://ai.studio/apps/drive/1SkkL3Jt-wAZ9w4P_eotsUxioAJ5IVxX8)]"
 </div>
 
 # Gemini Creative Suite - VEO Free Creator
