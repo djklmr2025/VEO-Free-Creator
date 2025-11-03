@@ -30,7 +30,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [veoModel, setVeoModel] = useState<'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview'>('veo-3.1-fast-generate-preview');
-  const [generationMethod, setGenerationMethod] = useState<'direct' | 'puter'>('direct');
+  const [generationMethod, setGenerationMethod] = useState<'direct' | 'puter' | 'local'>('direct');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -125,6 +125,97 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
     setImageBase64(null);
   };
 
+  // --- Fallback local video (sin API): genera un pequeño video estilo Ken Burns a partir de la imagen subida ---
+  const createKenBurnsVideoFromImage = async (
+    imageDataUrl: string,
+    durationSec: number,
+    width: number,
+    height: number
+  ): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const img = new Image();
+        img.src = imageDataUrl;
+        await new Promise<void>((res, rej) => {
+          img.onload = () => res();
+          img.onerror = (e) => rej(e);
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context not available'));
+
+        if (!('captureStream' in canvas) || typeof MediaRecorder === 'undefined') {
+          return reject(new Error('Tu navegador no soporta la grabación de video (MediaRecorder).'));
+        }
+
+        const fps = 30;
+        const stream = (canvas as any).captureStream(fps);
+        const options: MediaRecorderOptions = { mimeType: 'video/webm;codecs=vp9' };
+        let recorder: MediaRecorder;
+        try {
+          recorder = new MediaRecorder(stream, options);
+        } catch {
+          // Fallback a simple webm
+          recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        }
+
+        const chunks: BlobPart[] = [];
+        recorder.ondataavailable = (e) => e.data && chunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          resolve(blob);
+        };
+
+        recorder.start();
+
+        const start = performance.now();
+        const end = start + durationSec * 1000;
+
+        const animate = (now: number) => {
+          const t = Math.min(1, (now - start) / (end - start));
+          // Zoom suave y pan
+          const zoom = 1.1 + 0.25 * t; // de 1.1 a ~1.35
+          const panX = (img.width * 0.05) * t; // leve pan hacia la derecha
+          const panY = (img.height * 0.05) * t; // leve pan hacia abajo
+
+          // Limpiar lienzo
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, width, height);
+
+          // Calcular ajuste para cubrir canvas manteniendo aspecto
+          const imgAspect = img.width / img.height;
+          const canvasAspect = width / height;
+          let drawW: number, drawH: number;
+          if (imgAspect > canvasAspect) {
+            drawH = height * zoom;
+            drawW = drawH * imgAspect;
+          } else {
+            drawW = width * zoom;
+            drawH = drawW / imgAspect;
+          }
+
+          const x = (width - drawW) / 2 - panX;
+          const y = (height - drawH) / 2 - panY;
+
+          ctx.drawImage(img, x, y, drawW, drawH);
+
+          if (now < end) {
+            requestAnimationFrame(animate);
+          } else {
+            recorder.stop();
+          }
+        };
+
+        requestAnimationFrame(animate);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
   const handleGenerate = async (overridePrompt?: string) => {
     const finalPrompt = overridePrompt ?? prompt;
     if (!finalPrompt.trim() && !imageFile) {
@@ -136,6 +227,22 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
     setGeneratedVideoUrl(null);
 
     try {
+      // Modo local: genera un video sin usar APIs (requiere imagen)
+      if (generationMethod === 'local') {
+        if (!imageBase64 || !imageFile) {
+          throw new Error('Para el modo local, sube una imagen para crear el video.');
+        }
+        const isPortrait = aspectRatio === '9:16';
+        const width = isPortrait ? 720 : 1280;
+        const height = isPortrait ? 1280 : 720;
+        const dataUrl = `data:${imageFile.type};base64,${imageBase64}`;
+        const blob = await createKenBurnsVideoFromImage(dataUrl, 6, width, height);
+        const objectUrl = URL.createObjectURL(blob);
+        setGeneratedVideoUrl(objectUrl);
+        onResult?.({ videoUrl: objectUrl, sourceUri: 'local-generated', prompt: finalPrompt });
+        return;
+      }
+
       if (generationMethod === 'puter') {
         // Use Puter.js method for video generation
         const result = await generateVideoViaPuter(finalPrompt, aspectRatio);
@@ -312,6 +419,17 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
                               disabled={isLoading}
                           />
                           Via Puter.js (Experimental)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-300">
+                          <input
+                              type="radio"
+                              value="local"
+                              checked={generationMethod === 'local'}
+                              onChange={() => setGenerationMethod('local')}
+                              className="text-gemini-blue focus:ring-gemini-blue"
+                              disabled={isLoading}
+                          />
+                          Local (sin API, requiere imagen)
                       </label>
                   </div>
               </div>
