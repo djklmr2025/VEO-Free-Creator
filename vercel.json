@@ -6,6 +6,7 @@
   "devCommand": "npm run dev",
   "env": {
     "GEMINI_API_KEY": "@gemini_api_key",
+    "VITE_GEMINI_API_KEY": "@gemini_api_key",
     "AUTOPILOT_ENABLED": "true",
     "ARKAIOS_API_KEY": "@arkaios_api_key"
   },

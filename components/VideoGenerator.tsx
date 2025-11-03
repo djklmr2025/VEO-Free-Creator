@@ -40,6 +40,8 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
   const [isGreetingLoading, setIsGreetingLoading] = useState(false);
   const [hasAutoPlayedGreeting, setHasAutoPlayedGreeting] = useState(false);
   const hasAutoRunRef = useRef(false);
+  // Ayuda: estado derivado para saber si se puede generar
+  const canGenerate = (prompt?.trim()?.length ?? 0) > 0 || !!imageFile;
 
   const playGreeting = useCallback(async () => {
     setIsGreetingLoading(true);
@@ -337,10 +339,13 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
           </div>
       </div>
 
-      <div className="mt-6">
-          <Button onClick={handleGenerate} isLoading={isLoading} disabled={isLoading || (!prompt.trim() && !imageFile)}>
+      <div className="mt-6 relative z-30">
+          {/* onClick must NOT pass the MouseEvent to handleGenerate, wrap to avoid treating event as prompt */}
+          <Button onClick={() => handleGenerate()} isLoading={isLoading} disabled={isLoading || !canGenerate}>
               {isLoading ? 'Generating...' : 'Generate Video'}
           </Button>
+          {/* Debug mínimo para diagnosticar botón inactivo (se puede ocultar luego) */}
+          <div className="mt-2 text-xs text-gray-400">Estado: loading={String(isLoading)} · promptChars={(prompt?.trim()?.length ?? 0)} · image={String(!!imageFile)}</div>
       </div>
 
       {error && <div className="mt-4 p-3 bg-red-900/50 text-red-300 border border-red-700 rounded-lg">{error}</div>}
