@@ -14,7 +14,7 @@
     "api/autopilot.ts": {
       "runtime": "@vercel/node"
     },
-    "api/kv-health.ts": {
+    "api/kvHealth.ts": {
       "runtime": "@vercel/node"
     }
   },
@@ -22,6 +22,11 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
+    }
+    ,
+    {
+      "source": "/api/kv-health",
+      "destination": "/api/kvHealth"
     }
   ]
 }
