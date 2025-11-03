@@ -19,6 +19,9 @@
     },
     "api/kv-health/index.ts": {
       "runtime": "@vercel/node"
+    },
+    "api/kv.ts": {
+      "runtime": "@vercel/node"
     }
   },
   "rewrites": [
