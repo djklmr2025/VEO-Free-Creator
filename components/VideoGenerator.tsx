@@ -172,8 +172,16 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
         throw new Error("Video generation failed or returned no video URI.");
       }
     } catch (err: any) {
-        const errorMessage = err.message || "An unknown error occurred.";
-        setError(`Error: ${errorMessage}`);
+        const raw = typeof err === 'string' ? err : (err?.message || JSON.stringify(err));
+        const errorMessage = raw || "An unknown error occurred.";
+        // Mensaje genérico
+        let uiMessage = `Error: ${errorMessage}`;
+        // Mensaje amigable para cuota/429
+        const msgLower = errorMessage.toLowerCase();
+        if (msgLower.includes('resource_exhausted') || msgLower.includes('quota') || msgLower.includes('429')) {
+            uiMessage = `Error 429 / cuota agotada: Has excedido tu cuota actual para la API de Gemini. Configura facturación o revisa tus límites en AI Studio.\n\nPasos: 1) Abre https://ai.google.dev/usage para ver uso y límites. 2) Configura facturación (https://ai.google.dev/gemini-api/docs/billing). 3) Prueba el modelo 'Veo 3.1 Fast (720p)' y reduce la frecuencia de solicitud.\n\nDetalle técnico: ${errorMessage}`;
+        }
+        setError(uiMessage);
         if (errorMessage.includes("Requested entity was not found.")) {
             setError("API Key not found or invalid. Please select your API key again.");
             resetKey();
