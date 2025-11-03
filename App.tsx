@@ -109,13 +109,13 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+          <div className="bg-gray-800 rounded-lg shadow-xl overflow-visible">
             <TabNavigation 
               activeTab={activeTab} 
               setActiveTab={setActiveTab}
             />
 
-            <div className="h-[600px]">
+            <div className="min-h-[600px]">
               <TabContent 
                 activeTab={activeTab}
                 videoPrefill={videoPrefill}
