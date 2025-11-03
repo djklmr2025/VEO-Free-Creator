@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useVeoApiKey } from '../hooks/useVeoApiKey';
+import { useAuth } from '../hooks/useAuth';
 import { generateVideo, pollVideoStatus, generateSpeech, generateVideoViaPuter } from '../services/geminiService';
 import { fileToBase64 } from '../utils/fileUtils';
 import { decode, decodeAudioData, getAudioContext, playAudio } from '../utils/audioUtils';
 import Button from './Button';
 import { Spinner, UploadIcon, XIcon, SpeakerIcon } from './Icons';
+import { ApiKeyManager } from './ApiKeyManager';
 import VeoInfo from './VeoInfo';
 import VeoTester from './VeoTester';
 import VeoForceCall from './VeoForceCall';
@@ -27,6 +29,7 @@ type VideoGeneratorProps = {
 
 const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGenerate, onResult }) => {
   const { isKeySelected, isChecking, selectKey, resetKey } = useVeoApiKey();
+  const auth = useAuth();
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [veoModel, setVeoModel] = useState<'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview'>('veo-3.1-fast-generate-preview');
@@ -40,6 +43,10 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
   const [isGreetingLoading, setIsGreetingLoading] = useState(false);
   const [hasAutoPlayedGreeting, setHasAutoPlayedGreeting] = useState(false);
   const hasAutoRunRef = useRef(false);
+  
+  // Obtener métodos disponibles basados en permisos
+  const availableMethods = auth.getAvailableMethods();
+  
   // Ayuda: estado derivado para saber si se puede generar
   const canGenerate = (prompt?.trim()?.length ?? 0) > 0 || !!imageFile;
 
@@ -222,6 +229,14 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
       setError("Please enter a prompt or provide an image.");
       return;
     }
+
+    // Verificar permisos antes de generar
+    const canGenerate = auth.canGenerateVideo();
+    if (!canGenerate.allowed) {
+      setError(canGenerate.reason || "No tienes permisos para generar videos.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setGeneratedVideoUrl(null);
@@ -239,6 +254,8 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
         const blob = await createKenBurnsVideoFromImage(dataUrl, 6, width, height);
         const objectUrl = URL.createObjectURL(blob);
         setGeneratedVideoUrl(objectUrl);
+        // Incrementar uso diario después de generación exitosa
+        auth.incrementDailyUsage();
         onResult?.({ videoUrl: objectUrl, sourceUri: 'local-generated', prompt: finalPrompt });
         return;
       }
@@ -273,6 +290,8 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
         const videoBlob = await videoResponse.blob();
         const objectUrl = URL.createObjectURL(videoBlob);
         setGeneratedVideoUrl(objectUrl);
+        // Incrementar uso diario después de generación exitosa
+        auth.incrementDailyUsage();
         // Comunicar resultado a la app (para el chat del agente)
         onResult?.({ videoUrl: objectUrl, sourceUri, prompt: finalPrompt });
       } else {
@@ -321,13 +340,24 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
     return <div className="flex items-center justify-center h-48"><Spinner className="h-8 w-8"/></div>;
   }
   
-  if (!isKeySelected) {
+  // Mostrar ApiKeyManager si no hay autenticación
+  if (!auth.isAuthenticated && !isKeySelected) {
     return (
-        <div className="text-center p-8 bg-gray-800 rounded-lg">
-            <h2 className="text-2xl font-bold mb-4">API Key Required for Veo</h2>
-            <p className="mb-6 text-gray-400">Video generation with Veo requires you to select an API key. This helps manage project billing.</p>
-            <p className="mb-6 text-xs text-gray-500">For more info, see the <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-gemini-blue underline">billing documentation</a>.</p>
-            <Button onClick={selectKey}>Select API Key</Button>
+        <div>
+            <ApiKeyManager 
+                onApiKeyChange={(apiKey, source) => {
+                    auth.updateApiKey(apiKey, source);
+                    if (apiKey && source !== 'env') {
+                        selectKey(); // Mantener compatibilidad con el sistema existente
+                    }
+                }}
+                currentApiKey={auth.apiKey || undefined}
+            />
+            <div className="text-center p-8 bg-gray-800 rounded-lg mt-4">
+                <h3 className="text-xl font-bold mb-4">¿Prefieres el método clásico?</h3>
+                <p className="mb-4 text-gray-400">También puedes usar el selector de API key original.</p>
+                <Button onClick={selectKey} variant="secondary">Selector Clásico</Button>
+            </div>
         </div>
     );
   }
@@ -397,41 +427,62 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
               </div>
               <div className="flex items-center gap-4">
                   <label className="font-medium text-sm text-gray-300">Generation Method:</label>
-                  <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-sm text-gray-300">
-                          <input
-                              type="radio"
-                              value="direct"
-                              checked={generationMethod === 'direct'}
-                              onChange={(e) => setGenerationMethod(e.target.value as 'direct' | 'puter')}
-                              className="text-gemini-blue focus:ring-gemini-blue"
-                              disabled={isLoading}
-                          />
-                          Direct API (Recommended)
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-gray-300">
-                          <input
-                              type="radio"
-                              value="puter"
-                              checked={generationMethod === 'puter'}
-                              onChange={(e) => setGenerationMethod(e.target.value as 'direct' | 'puter')}
-                              className="text-gemini-blue focus:ring-gemini-blue"
-                              disabled={isLoading}
-                          />
-                          Via Puter.js (Experimental)
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-gray-300">
-                          <input
-                              type="radio"
-                              value="local"
-                              checked={generationMethod === 'local'}
-                              onChange={() => setGenerationMethod('local')}
-                              className="text-gemini-blue focus:ring-gemini-blue"
-                              disabled={isLoading}
-                          />
-                          Local (sin API, requiere imagen)
-                      </label>
+                  <div className="flex gap-4 flex-wrap">
+                      {availableMethods.map((method) => (
+                          <label key={method.id} className="flex items-center gap-2 text-sm text-gray-300">
+                              <input
+                                  type="radio"
+                                  value={method.id}
+                                  checked={generationMethod === method.id}
+                                  onChange={(e) => setGenerationMethod(e.target.value as 'direct' | 'puter' | 'local')}
+                                  className="text-gemini-blue focus:ring-gemini-blue"
+                                  disabled={isLoading}
+                              />
+                              <span className="flex items-center gap-1">
+                                  {method.name}
+                                  {method.premium && (
+                                      <span className="px-1 py-0.5 bg-yellow-600 text-yellow-100 text-xs rounded">
+                                          {auth.isProPlus ? 'Pro+' : auth.isPremium ? 'Premium' : 'API'}
+                                      </span>
+                                  )}
+                              </span>
+                          </label>
+                      ))}
                   </div>
+              </div>
+              
+              {/* Mostrar información de uso diario */}
+              <div className="bg-gray-700 rounded p-3 text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                      <span className="text-gray-300">Uso diario:</span>
+                      <span className="text-white">
+                          {auth.permissions.maxVideosPerDay === -1 
+                              ? `${auth.dailyUsage} (Ilimitado)` 
+                              : `${auth.dailyUsage}/${auth.permissions.maxVideosPerDay}`
+                          }
+                      </span>
+                  </div>
+                  <div className="w-full bg-gray-600 rounded-full h-2">
+                      <div 
+                          className={`h-2 rounded-full transition-all ${
+                              auth.permissions.maxVideosPerDay === -1 
+                                  ? 'bg-green-500 w-full' 
+                                  : auth.dailyUsage >= auth.permissions.maxVideosPerDay 
+                                      ? 'bg-red-500 w-full' 
+                                      : 'bg-blue-500'
+                          }`}
+                          style={{
+                              width: auth.permissions.maxVideosPerDay === -1 
+                                  ? '100%' 
+                                  : `${Math.min((auth.dailyUsage / auth.permissions.maxVideosPerDay) * 100, 100)}%`
+                          }}
+                      />
+                  </div>
+                  {!auth.permissions.hasUnlimitedQuota && auth.dailyUsage >= auth.permissions.maxVideosPerDay && (
+                      <p className="text-red-400 text-xs mt-2">
+                          Has alcanzado el límite diario. {!auth.isAuthenticated && 'Conecta tu cuenta para aumentar el límite.'}
+                      </p>
+                  )}
               </div>
           </div>
           <div className="space-y-2">
