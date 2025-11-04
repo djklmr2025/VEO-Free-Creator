@@ -5,20 +5,7 @@
   "installCommand": "npm install",
   "devCommand": "npm run dev",
   
-  "functions": {
-    "api/autopilot.ts": {
-      "runtime": "nodejs20.x"
-    },
-    "api/kvHealth.ts": {
-      "runtime": "nodejs20.x"
-    },
-    "api/kv-health/index.ts": {
-      "runtime": "nodejs20.x"
-    },
-    "api/kv.ts": {
-      "runtime": "nodejs20.x"
-    }
-  },
+  
   "rewrites": [
     {
       "source": "/api/(.*)",
