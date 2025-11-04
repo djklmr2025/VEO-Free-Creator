@@ -31,13 +31,17 @@ async function readEnabled(): Promise<boolean> {
     const redisUrl = process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL;
     if (redisUrl) {
       try {
-        const { getRedis } = await import('./_lib/redisClient');
-        const redis = await getRedis();
-        const raw = await redis.get('autopilot-state');
+        const { createClient } = await import('redis');
+        const client = createClient({ url: redisUrl });
+        client.on('error', (err) => console.error('Redis error:', err));
+        await client.connect();
+        const raw = await client.get('autopilot-state');
         if (raw) {
           const data = JSON.parse(raw);
+          await client.disconnect();
           return !!data.enabled;
         }
+        await client.disconnect();
       } catch (redisError) {
         console.warn('Redis read failed, proceeding to file fallback:', redisError);
       }
@@ -81,9 +85,13 @@ async function writeEnabled(enabled: boolean, forceStop = false): Promise<boolea
       }
     } else if (process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL) {
       try {
-        const { getRedis } = await import('./_lib/redisClient');
-        const redis = await getRedis();
-        await redis.set('autopilot-state', JSON.stringify(data));
+        const url = process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL;
+        const { createClient } = await import('redis');
+        const client = createClient({ url: url! });
+        client.on('error', (err) => console.error('Redis error:', err));
+        await client.connect();
+        await client.set('autopilot-state', JSON.stringify(data));
+        await client.disconnect();
       } catch (redisError) {
         console.warn('Redis write failed:', redisError);
       }
@@ -189,8 +197,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ ok: false, usingRedis, reason: 'Missing REDIS_URL' });
       }
       try {
-        const { getRedis } = await import('./_lib/redisClient');
-        const redis = await getRedis();
+        const url = process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL;
+        const { createClient } = await import('redis');
+        const redis = createClient({ url: url! });
+        redis.on('error', (err) => console.error('Redis error:', err));
+        await redis.connect();
         const key = 'kv-health-check';
         const payload = { ts: Date.now() };
         const start = Date.now();
@@ -204,6 +215,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } catch {}
         }
         const roundtripMs = Date.now() - start;
+        await redis.disconnect();
         return res.status(200).json({ ok: !!raw && getOk, usingRedis, roundtripMs });
       } catch (err: any) {
         return res.status(200).json({ ok: false, usingRedis: true, error: String(err?.message || err) });

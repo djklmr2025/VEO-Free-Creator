@@ -65,11 +65,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       roundtripMs = Date.now() - start;
     } else {
-      const { redisHealthCheck } = await import('./_lib/redisClient');
-      const result = await redisHealthCheck();
-      setOk = result.setOk;
-      getOk = result.getOk;
-      roundtripMs = result.roundtripMs;
+      const { createClient } = await import('redis');
+      const client = createClient({ url: redisUrl! });
+      client.on('error', (err) => console.error('Redis error:', err));
+      await client.connect();
+      const key = 'kv-health-check';
+      const payload = { ts: Date.now() };
+      await client.set(key, JSON.stringify(payload)).then(() => { setOk = true; });
+      const raw = await client.get(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          getOk = !!parsed && typeof parsed.ts === 'number';
+        } catch {}
+      }
+      roundtripMs = Date.now() - start;
+      await client.disconnect();
     }
   } catch (err: any) {
     lastError = String(err?.message || err);
