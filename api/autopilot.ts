@@ -89,7 +89,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.query && (req.query as any).health === 'kv') {
       const usingKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
       if (!usingKV) {
-        return res.status(200).json({ ok: false, usingKV, reason: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN' });
+        return res.status(200).json({ 
+          ok: false, 
+          usingKV, 
+          reason: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN',
+          meta: {
+            timestamp: new Date().toISOString(),
+            vercel: {
+              env: process.env.VERCEL_ENV,
+              gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+              gitCommitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE,
+              gitBranch: process.env.VERCEL_GIT_COMMIT_REF
+            }
+          }
+        });
       }
 
       const key = 'kv-health-check';
@@ -129,11 +142,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         lastError = String(err?.message || err);
       }
 
-      return res.status(200).json({ ok: setOk && getOk, usingKV, setOk, getOk, roundtripMs, error: lastError });
+      return res.status(200).json({ 
+        ok: setOk && getOk, 
+        usingKV, 
+        setOk, 
+        getOk, 
+        roundtripMs, 
+        error: lastError,
+        meta: {
+          timestamp: new Date().toISOString(),
+          vercel: {
+            env: process.env.VERCEL_ENV,
+            gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+            gitCommitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE,
+            gitBranch: process.env.VERCEL_GIT_COMMIT_REF
+          }
+        }
+      });
     }
 
     const enabled = await readEnabled();
-    return res.status(200).json({ enabled });
+    return res.status(200).json({ 
+      enabled,
+      meta: {
+        timestamp: new Date().toISOString(),
+        vercel: {
+          env: process.env.VERCEL_ENV,
+          gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+          gitCommitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE,
+          gitBranch: process.env.VERCEL_GIT_COMMIT_REF
+        }
+      }
+    });
   }
 
   if (req.method === 'POST') {
