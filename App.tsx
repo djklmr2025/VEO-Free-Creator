@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { useLanguage } from './contexts/LanguageContext';
 import FastChat from './components/FastChat';
 import VideoGenerator from './components/VideoGenerator';
 import ImageGenerator from './components/ImageGenerator';
@@ -153,20 +154,47 @@ interface TabNavigationProps {
 }
 
 const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, setActiveTab }) => {
+  const { t } = useLanguage();
   const tabs = [
-    { id: 'chat', label: 'Fast Chat', icon: '💬' },
-    { id: 'agent', label: 'Video Agent', icon: '🤖', highlight: true },
-    { id: 'video', label: 'Video Generator', icon: '🎬' },
-    { id: 'image', label: 'Image Generator', icon: '🖼️' },
-    { id: 'diagnostics', label: 'Diagnostics', icon: '🩺' },
+    { id: 'chat', label: t('nav.fastChat'), icon: '💬' },
+    { id: 'agent', label: t('nav.videoAgent'), icon: '🤖', highlight: true },
+    { id: 'video', label: t('nav.videoGenerator'), icon: '🎬' },
+    { id: 'image', label: t('nav.imageGenerator'), icon: '🖼️' },
+    { id: 'diagnostics', label: t('nav.diagnostics'), icon: '🩺' },
   ];
 
+  const focusTabButton = (id: string) => {
+    const el = document.getElementById(`tab-${id}`);
+    if (el) el.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const key = e.key;
+    if (key === 'ArrowRight' || key === 'ArrowLeft' || key === 'Home' || key === 'End') {
+      e.preventDefault();
+      let nextIndex = index;
+      if (key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+      if (key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+      if (key === 'Home') nextIndex = 0;
+      if (key === 'End') nextIndex = tabs.length - 1;
+      const nextTabId = tabs[nextIndex].id;
+      setActiveTab(nextTabId);
+      focusTabButton(nextTabId);
+    }
+  };
+
   return (
-    <div className="flex border-b border-gray-700">
-      {tabs.map((tab) => (
+    <div className="flex border-b border-gray-700" role="tablist" aria-label="Primary">
+      {tabs.map((tab, idx) => (
         <button
           key={tab.id}
+          id={`tab-${tab.id}`}
           onClick={() => setActiveTab(tab.id)}
+          onKeyDown={(e) => handleKeyDown(e, idx)}
+          role="tab"
+          aria-selected={activeTab === tab.id}
+          aria-controls={`panel-${tab.id}`}
+          tabIndex={activeTab === tab.id ? 0 : -1}
           className={`flex-1 px-6 py-4 text-center font-medium transition-colors relative ${
             activeTab === tab.id
               ? tab.highlight 
@@ -207,29 +235,34 @@ const TabContent: React.FC<TabContentProps> = ({
   onVideoGenerated,
   externalVideoEvent
 }) => {
+  const panelProps = { role: 'tabpanel', id: `panel-${activeTab}`, 'aria-labelledby': `tab-${activeTab}` } as React.HTMLAttributes<HTMLDivElement>;
   switch (activeTab) {
     case 'chat':
-      return <FastChat onIntent={onIntent} />;
+      return <div {...panelProps}><FastChat onIntent={onIntent} /></div>;
     case 'agent':
-      return <VideoAgent onVideoGenerate={onVideoAgentGenerate} externalEvent={externalVideoEvent} />;
+      return <div {...panelProps}><VideoAgent onVideoGenerate={onVideoAgentGenerate} externalEvent={externalVideoEvent} /></div>;
     case 'video':
       return (
-        <VideoGenerator 
-          defaultPrompt={videoPrefill?.prompt}
-          autoGenerate={videoPrefill?.autoGenerate}
-          onResult={onVideoGenerated}
-        />
+        <div {...panelProps}>
+          <VideoGenerator 
+            defaultPrompt={videoPrefill?.prompt}
+            autoGenerate={videoPrefill?.autoGenerate}
+            onResult={onVideoGenerated}
+          />
+        </div>
       );
     case 'image':
       return (
-        <ImageGenerator 
-          defaultPrompt={imagePrefill?.prompt}
-          autoGenerate={imagePrefill?.autoGenerate}
-        />
+        <div {...panelProps}>
+          <ImageGenerator 
+            defaultPrompt={imagePrefill?.prompt}
+            autoGenerate={imagePrefill?.autoGenerate}
+          />
+        </div>
       );
     case 'diagnostics':
-      return <ApiDiagnostics />;
+      return <div {...panelProps}><ApiDiagnostics /></div>;
     default:
-      return <FastChat onIntent={onIntent} />;
+      return <div {...panelProps}><FastChat onIntent={onIntent} /></div>;
   }
 };

@@ -16,7 +16,7 @@ const Button: React.FC<ButtonProps> = ({
   return (
     <button
       disabled={disabled || isLoading}
-      className={`inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gemini-blue hover:bg-gemini-blue/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gemini-blue disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors duration-200 ${className}`}
+      className={`inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gemini-blue hover:bg-gemini-blue/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gemini-blue disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors duration-200 ${className}`}
       {...props}
     >
       {isLoading && <Spinner className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />}

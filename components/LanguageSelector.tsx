@@ -23,6 +23,9 @@ export const LanguageSelector: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg text-white transition-colors"
         title={t('common.language')}
+        aria-label={t('common.language')}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
       >
         <span className="text-lg">{currentLanguage?.flag}</span>
         <span className="text-sm font-medium">{currentLanguage?.code.toUpperCase()}</span>
@@ -45,7 +48,7 @@ export const LanguageSelector: React.FC = () => {
           />
           
           {/* Dropdown */}
-          <div className="absolute top-full left-0 mt-1 w-40 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-20">
+          <div className="absolute top-full left-0 mt-1 w-40 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-20" role="listbox" aria-label={t('common.language')}>
             {languages.map((lang) => (
               <button
                 key={lang.code}
@@ -55,6 +58,8 @@ export const LanguageSelector: React.FC = () => {
                 } ${lang.code === languages[0].code ? 'rounded-t-lg' : ''} ${
                   lang.code === languages[languages.length - 1].code ? 'rounded-b-lg' : ''
                 }`}
+                role="option"
+                aria-selected={language === lang.code}
               >
                 <span className="text-lg">{lang.flag}</span>
                 <div>

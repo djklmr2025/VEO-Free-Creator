@@ -16,6 +16,7 @@ const translations = {
     'nav.imageGenerator': 'Generador de Imagen',
     'nav.videoAgent': 'Video Agent',
     'nav.labMode': 'Modo Laboratorio',
+    'nav.diagnostics': 'Diagnóstico',
     
     // Video Agent
     'agent.title': 'Video Agent VEO 3',
@@ -64,6 +65,7 @@ const translations = {
     'nav.imageGenerator': 'Image Generator',
     'nav.videoAgent': 'Video Agent',
     'nav.labMode': 'Lab Mode',
+    'nav.diagnostics': 'Diagnostics',
     
     // Video Agent
     'agent.title': 'Video Agent VEO 3',
