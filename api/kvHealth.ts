@@ -16,7 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const usingKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
-  const usingRedis = !usingKV && !!process.env.REDIS_URL;
+  const redisUrl = process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL;
+  const usingRedis = !usingKV && !!redisUrl;
 
   if (!usingKV && !usingRedis) {
     return res.status(200).json({

@@ -3,13 +3,26 @@ import { createClient, RedisClientType } from 'redis';
 let client: RedisClientType | null = null;
 
 /**
+ * Returns the configured Redis URL from environment.
+ * Supports multiple env names to be compatible with different integrations.
+ */
+export function getRedisUrl(): string | undefined {
+  return (
+    process.env.REDIS_URL ||
+    process.env.KV_REDIS_URL ||
+    process.env.VERCEL_REDIS_URL ||
+    undefined
+  );
+}
+
+/**
  * Get a singleton Redis client using REDIS_URL.
  * Ensures we reuse the same connection across serverless invocations when possible.
  */
 export async function getRedis(): Promise<RedisClientType> {
   if (client) return client;
 
-  const url = process.env.REDIS_URL;
+  const url = getRedisUrl();
   if (!url) {
     throw new Error('Missing REDIS_URL');
   }

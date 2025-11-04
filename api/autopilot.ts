@@ -29,7 +29,8 @@ async function readEnabled(): Promise<boolean> {
     }
 
     // Try Redis if available
-    if (process.env.REDIS_URL) {
+    const redisUrl = process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL;
+    if (redisUrl) {
       try {
         const { getRedis } = await import('../services/redisClient');
         const redis = await getRedis();
@@ -79,7 +80,7 @@ async function writeEnabled(enabled: boolean, forceStop = false): Promise<boolea
       } catch (kvError) {
         console.warn('KV write failed:', kvError);
       }
-    } else if (process.env.REDIS_URL) {
+    } else if (process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL) {
       try {
         const { getRedis } = await import('../services/redisClient');
         const redis = await getRedis();
@@ -184,7 +185,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.query && (req.query as any).health === 'redis') {
-      const usingRedis = !!process.env.REDIS_URL;
+      const usingRedis = !!(process.env.REDIS_URL || process.env.KV_REDIS_URL || process.env.VERCEL_REDIS_URL);
       if (!usingRedis) {
         return res.status(200).json({ ok: false, usingRedis, reason: 'Missing REDIS_URL' });
       }
