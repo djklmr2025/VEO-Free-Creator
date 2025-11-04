@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fs from 'fs';
 import path from 'path';
+import { getRedis } from '../services/redisClient';
 
 const TMP_PATH = path.join('/tmp', 'arkaios_autopilot.json');
 
@@ -23,10 +24,24 @@ async function readEnabled(): Promise<boolean> {
           }
         }
       } catch (kvError) {
-        console.warn('KV read failed, using file fallback:', kvError);
+        console.warn('KV read failed, proceeding to Redis/file fallback:', kvError);
       }
     }
-    
+
+    // Try Redis if available
+    if (process.env.REDIS_URL) {
+      try {
+        const redis = await getRedis();
+        const raw = await redis.get('autopilot-state');
+        if (raw) {
+          const data = JSON.parse(raw);
+          return !!data.enabled;
+        }
+      } catch (redisError) {
+        console.warn('Redis read failed, proceeding to file fallback:', redisError);
+      }
+    }
+
     // Fallback to file system
     if (fs.existsSync(TMP_PATH)) {
       const raw = fs.readFileSync(TMP_PATH, 'utf8');
@@ -58,12 +73,17 @@ async function writeEnabled(enabled: boolean, forceStop = false): Promise<boolea
             'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
             'Content-Type': 'application/json',
           },
-          // Upstash/Vercel KV expects a JSON object with a `value` field
-          // that contains the stringified value to store.
           body: JSON.stringify({ value: JSON.stringify(data) }),
         });
       } catch (kvError) {
-        console.warn('KV write failed, using file fallback:', kvError);
+        console.warn('KV write failed:', kvError);
+      }
+    } else if (process.env.REDIS_URL) {
+      try {
+        const redis = await getRedis();
+        await redis.set('autopilot-state', JSON.stringify(data));
+      } catch (redisError) {
+        console.warn('Redis write failed:', redisError);
       }
     }
     
@@ -85,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'GET') {
-    // Optional KV health check via query param: /api/autopilot?health=kv
+    // Optional health checks via query param: /api/autopilot?health=kv | redis
     if (req.query && (req.query as any).health === 'kv') {
       const usingKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
       if (!usingKV) {
@@ -159,6 +179,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       });
+    }
+
+    if (req.query && (req.query as any).health === 'redis') {
+      const usingRedis = !!process.env.REDIS_URL;
+      if (!usingRedis) {
+        return res.status(200).json({ ok: false, usingRedis, reason: 'Missing REDIS_URL' });
+      }
+      try {
+        const redis = await getRedis();
+        const key = 'kv-health-check';
+        const payload = { ts: Date.now() };
+        const start = Date.now();
+        await redis.set(key, JSON.stringify(payload));
+        const raw = await redis.get(key);
+        let getOk = false;
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            getOk = !!parsed && typeof parsed.ts === 'number';
+          } catch {}
+        }
+        const roundtripMs = Date.now() - start;
+        return res.status(200).json({ ok: !!raw && getOk, usingRedis, roundtripMs });
+      } catch (err: any) {
+        return res.status(200).json({ ok: false, usingRedis: true, error: String(err?.message || err) });
+      }
     }
 
     const enabled = await readEnabled();

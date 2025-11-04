@@ -1,5 +1,6 @@
 // KV Health Check endpoint (ping) – minor update to trigger redeploy
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { redisHealthCheck } from '../services/redisClient';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,12 +16,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const usingKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  const usingRedis = !usingKV && !!process.env.REDIS_URL;
 
-  if (!usingKV) {
+  if (!usingKV && !usingRedis) {
     return res.status(200).json({
       ok: false,
       usingKV,
-      reason: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN',
+      usingRedis,
+      reason: 'Missing KV_REST_API_* or REDIS_URL',
     });
   }
 
@@ -34,32 +37,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let lastError: string | undefined;
 
   try {
-    // SET
-    const setResp = await fetch(`${process.env.KV_REST_API_URL}/set/${key}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ value: JSON.stringify(payload) }),
-    });
-    setOk = setResp.ok;
+    if (usingKV) {
+      // SET
+      const setResp = await fetch(`${process.env.KV_REST_API_URL}/set/${key}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ value: JSON.stringify(payload) }),
+      });
+      setOk = setResp.ok;
 
-    // GET
-    const getResp = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
-      headers: {
-        'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
-      },
-    });
-    if (getResp.ok) {
-      const data = await getResp.json();
-      if (data && typeof data.result === 'string') {
-        const parsed = JSON.parse(data.result);
-        getOk = !!parsed && typeof parsed.ts === 'number';
+      // GET
+      const getResp = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
+        },
+      });
+      if (getResp.ok) {
+        const data = await getResp.json();
+        if (data && typeof data.result === 'string') {
+          const parsed = JSON.parse(data.result);
+          getOk = !!parsed && typeof parsed.ts === 'number';
+        }
       }
-    }
 
-    roundtripMs = Date.now() - start;
+      roundtripMs = Date.now() - start;
+    } else {
+      const result = await redisHealthCheck();
+      setOk = result.setOk;
+      getOk = result.getOk;
+      roundtripMs = result.roundtripMs;
+    }
   } catch (err: any) {
     lastError = String(err?.message || err);
   }
@@ -67,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({
     ok: setOk && getOk,
     usingKV,
+    usingRedis,
     setOk,
     getOk,
     roundtripMs,
