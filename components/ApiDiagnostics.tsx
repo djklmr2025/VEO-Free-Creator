@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Button from './Button';
 import { Spinner } from './Icons';
 
@@ -14,9 +14,12 @@ type CheckResult = {
 };
 
 const endpoints: { url: string; method?: 'GET' | 'POST' }[] = [
-  { url: '/api/autopilot?health=kv', method: 'GET' },
+  // Health checks (KV/Redis)
   { url: '/api/kv-health', method: 'GET' },
   { url: '/api/kvHealth', method: 'GET' },
+  { url: '/api/autopilot?health=kv', method: 'GET' },
+  { url: '/api/autopilot?health=redis', method: 'GET' },
+  // Simple KV list/info endpoint (if available)
   { url: '/api/kv', method: 'GET' },
 ];
 
@@ -25,7 +28,8 @@ async function checkEndpoint(url: string, method: 'GET' | 'POST' = 'GET'): Promi
   try {
     const res = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      cache: 'no-store',
     });
     const latencyMs = Math.round(performance.now() - start);
     let body: any = null;
@@ -100,6 +104,8 @@ const ApiDiagnostics: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<CheckResult[]>([]);
   const [baseUrl, setBaseUrl] = useState<string>(typeof window !== 'undefined' ? window.location.origin : '');
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+  const [intervalMs, setIntervalMs] = useState<number>(15000);
 
   const runChecks = async () => {
     setLoading(true);
@@ -112,7 +118,7 @@ const ApiDiagnostics: React.FC = () => {
         out.push(r);
       }
       // Si hay un dominio absoluto especificado, comprueba también allí
-      if (baseUrl && baseUrl.startsWith('http')) {
+      if (baseUrl && baseUrl.startsWith('http') && (typeof window === 'undefined' || baseUrl !== window.location.origin)) {
         for (const ep of endpoints) {
           const absUrl = `${baseUrl}${ep.url}`;
           // eslint-disable-next-line no-await-in-loop
@@ -126,10 +132,71 @@ const ApiDiagnostics: React.FC = () => {
     }
   };
 
+  // Auto refresh (ligero, adecuado para planes pequeños)
+  useEffect(() => {
+    if (!autoRefresh) return;
+    let cancelled = false;
+    // Ejecuta inmediatamente y luego programa intervalos
+    (async () => {
+      await runChecks();
+    })();
+    const id = setInterval(() => {
+      if (!cancelled) {
+        runChecks();
+      }
+    }, Math.max(3000, intervalMs));
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, intervalMs, baseUrl]);
+
+  // Resumen simple
+  const summary = useMemo(() => {
+    if (!results.length) return null;
+    const latencies = results.map(r => r.latencyMs || 0).filter(n => n > 0);
+    const avgLatency = latencies.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
+    const okCount = results.filter(r => (r.ok && (r.status ? r.status < 400 : true))).length;
+    const total = results.length;
+    const redisSignals = results.filter(r => /(kv-health|kvHealth|autopilot\?health=redis)/.test(r.url));
+    // Detecta "ok" y, si está disponible, "usingRedis: true"
+    const redisOk = redisSignals.some(r => {
+      const ok = r.ok && (r.status ? r.status < 400 : true);
+      const body = r.body;
+      const usingRedis = body && typeof body === 'object' ? (body.usingRedis === true || body.redis === true) : false;
+      return ok && (usingRedis || ok);
+    });
+    const lastChecked = results[0]?.checkedAt;
+    return { avgLatency, okCount, total, redisOk, lastChecked };
+  }, [results]);
+
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-semibold mb-2">🩺 API Diagnostics</h2>
-      <p className="text-gray-400 mb-4">Comprueba el estado de las APIs en este origen y opcionalmente contra un dominio absoluto (producción/preview).</p>
+      <h2 className="text-2xl font-semibold mb-1">🩺 API Diagnostics</h2>
+      <p className="text-gray-400 mb-4">Panel ligero para ver estado en tiempo real de KV/Redis y latencias (pensado para planes de hasta ~30&nbsp;MB).</p>
+
+      {/* Resumen */}
+      {summary && (
+        <div className="bg-gray-800/60 border border-gray-700 rounded-md p-4 mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div>
+            <div className="text-gray-400">Latencia media</div>
+            <div className="font-medium">{summary.avgLatency} ms</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Salud OK</div>
+            <div className="font-medium">{summary.okCount}/{summary.total}</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Redis</div>
+            <div className={`font-medium ${summary.redisOk ? 'text-green-400' : 'text-red-400'}`}>{summary.redisOk ? 'Online' : 'Offline'}</div>
+          </div>
+          <div>
+            <div className="text-gray-400">Última comprobación</div>
+            <div className="font-medium">{summary.lastChecked}</div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-gray-800/60 border border-gray-700 rounded-md p-4 mb-4">
         <label className="block text-sm text-gray-300 mb-2" htmlFor="base-url">Dominio absoluto (opcional)</label>
@@ -148,18 +215,40 @@ const ApiDiagnostics: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Button onClick={runChecks} disabled={loading} className="flex items-center gap-2">
           {loading ? <Spinner className="w-4 h-4" /> : null}
-          Comprobar todas
+          Comprobar ahora
         </Button>
         <Button onClick={() => setResults([])} disabled={loading} variant="secondary">
           Limpiar resultados
         </Button>
+        <div className="flex items-center gap-2 ml-auto text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+            />
+            Auto-refresh
+          </label>
+          <select
+            value={intervalMs}
+            onChange={(e) => setIntervalMs(Number(e.target.value))}
+            className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-gray-200"
+            aria-label="Intervalo"
+          >
+            <option value={5000}>5s</option>
+            <option value={10000}>10s</option>
+            <option value={15000}>15s</option>
+            <option value={30000}>30s</option>
+            <option value={60000}>60s</option>
+          </select>
+        </div>
       </div>
 
       {results.length === 0 ? (
-        <div className="text-gray-400">Pulsa "Comprobar todas" para iniciar las pruebas.</div>
+        <div className="text-gray-400">Pulsa "Comprobar ahora" o activa Auto-refresh para iniciar las pruebas.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {results.map((r) => (
