@@ -4,24 +4,19 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "devCommand": "npm run dev",
-  "env": {
-    "GEMINI_API_KEY": "@gemini_api_key",
-    "VITE_GEMINI_API_KEY": "@gemini_api_key",
-    "AUTOPILOT_ENABLED": "true",
-    "ARKAIOS_API_KEY": "@arkaios_api_key"
-  },
+  
   "functions": {
     "api/autopilot.ts": {
-      "runtime": "@vercel/node"
+      "runtime": "nodejs20.x"
     },
     "api/kvHealth.ts": {
-      "runtime": "@vercel/node"
+      "runtime": "nodejs20.x"
     },
     "api/kv-health/index.ts": {
-      "runtime": "@vercel/node"
+      "runtime": "nodejs20.x"
     },
     "api/kv.ts": {
-      "runtime": "@vercel/node"
+      "runtime": "nodejs20.x"
     }
   },
   "rewrites": [
