@@ -1,6 +1,8 @@
 [![GHBanner](https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6)](https://aistudio.google.com/app/prompts/1SkkL3Jt-wAZ9w4P_eotsUxioAJ5IVxX8)
 # Gemini Creative Suite - VEO Free Creator
 
+[![KV Health Check](https://github.com/djklmr2025/VEO-Free-Creator/actions/workflows/kv-health.yml/badge.svg)](https://github.com/djklmr2025/VEO-Free-Creator/actions/workflows/kv-health.yml)
+
 Una suite completa de herramientas de IA creativa que incluye generación de video con Veo, análisis de video, generación y edición de imágenes, text-to-speech y chat rápido con Gemini.
 
 ## 🚀 Características
