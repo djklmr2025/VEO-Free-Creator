@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { redisHealthCheck } from '../../services/redisClient';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -63,6 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       roundtripMs = Date.now() - start;
     } else {
+      const { redisHealthCheck } = await import('../_lib/redisClient');
       const result = await redisHealthCheck();
       setOk = result.setOk;
       getOk = result.getOk;
