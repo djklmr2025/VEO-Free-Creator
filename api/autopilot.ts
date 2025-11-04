@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fs from 'fs';
 import path from 'path';
-import { getRedis } from '../services/redisClient';
+// Dynamic import to only load Redis client when needed
 
 const TMP_PATH = path.join('/tmp', 'arkaios_autopilot.json');
 
@@ -31,6 +31,7 @@ async function readEnabled(): Promise<boolean> {
     // Try Redis if available
     if (process.env.REDIS_URL) {
       try {
+        const { getRedis } = await import('../services/redisClient');
         const redis = await getRedis();
         const raw = await redis.get('autopilot-state');
         if (raw) {
@@ -80,6 +81,7 @@ async function writeEnabled(enabled: boolean, forceStop = false): Promise<boolea
       }
     } else if (process.env.REDIS_URL) {
       try {
+        const { getRedis } = await import('../services/redisClient');
         const redis = await getRedis();
         await redis.set('autopilot-state', JSON.stringify(data));
       } catch (redisError) {
@@ -187,6 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ ok: false, usingRedis, reason: 'Missing REDIS_URL' });
       }
       try {
+        const { getRedis } = await import('../services/redisClient');
         const redis = await getRedis();
         const key = 'kv-health-check';
         const payload = { ts: Date.now() };
