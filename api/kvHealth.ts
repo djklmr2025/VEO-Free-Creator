@@ -1,6 +1,6 @@
-// KV Health Check endpoint (ping) – minor update to trigger redeploy
+// KV/Redis Health Check endpoint
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-// Note: use dynamic import to avoid loading redis client unless needed
+import { redisHealthCheck } from '../services/redisClient';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -66,7 +66,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       roundtripMs = Date.now() - start;
     } else {
-      const { redisHealthCheck } = await import('../services/redisClient');
       const result = await redisHealthCheck();
       setOk = result.setOk;
       getOk = result.getOk;
