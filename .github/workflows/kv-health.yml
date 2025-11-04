@@ -1,0 +1,65 @@
+name: KV Health Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL del despliegue a verificar (ej: https://tu-app.vercel.app)'
+        required: true
+        default: 'https://veo-free-creator-4ulm23p4j-arkaios-projects.vercel.app'
+      threshold_ms:
+        description: 'Umbral de roundtrip en ms (warning/error si se excede)'
+        required: false
+        default: '1200'
+      strict:
+        description: 'Fallar el workflow si se supera el umbral'
+        required: false
+        default: 'true'
+  schedule:
+    - cron: '0 6 * * *' # diario a las 06:00 UTC
+  push:
+    branches:
+      - main
+
+jobs:
+  scheduled:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: https://veo-free-creator-4ulm23p4j-arkaios-projects.vercel.app
+      THRESHOLD_MS: 1200
+      STRICT: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: KV health check (scheduled/push)
+        run: |
+          echo "Checking $BASE_URL ..."
+          STRICT_FLAG=""
+          if [ "$STRICT" = "true" ]; then STRICT_FLAG="--strict"; fi
+          node scripts/kvHealthCheck.cjs --base "$BASE_URL" --threshold "$THRESHOLD_MS" $STRICT_FLAG
+
+  manual:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ github.event.inputs.base_url }}
+      THRESHOLD_MS: ${{ github.event.inputs.threshold_ms }}
+      STRICT: ${{ github.event.inputs.strict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: KV health check (manual)
+        run: |
+          echo "Checking $BASE_URL ..."
+          STRICT_FLAG=""
+          if [ "$STRICT" = "true" ]; then STRICT_FLAG="--strict"; fi
+          node scripts/kvHealthCheck.cjs --base "$BASE_URL" --threshold "$THRESHOLD_MS" $STRICT_FLAG

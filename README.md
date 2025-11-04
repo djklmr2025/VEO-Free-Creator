@@ -76,6 +76,17 @@ Health-check:
 - Endpoint: `GET /api/kv-health` (se crea en este repo)
 - Realiza un set/get de prueba en KV y devuelve un JSON con el resultado.
 
+Health-check en CLI (para CI/local):
+- Producción: `npm run kv:health:prod`
+- Desarrollo local: `npm run kv:health:dev` (requiere `npm run dev` corriendo)
+- Personalizado: `node scripts/kvHealthCheck.cjs --url https://<tu-app>.vercel.app/api/kv-health`
+
+Flags disponibles:
+- `--base`: chequear ambos endpoints (`/api/kv-health` y `/api/kvHealth`) sobre la base indicada
+- `--url`: chequear un único endpoint específico
+- `--threshold <ms>`: umbral de roundtripMs para marcar warning/error
+- `--strict`: convierte umbral excedido en error (exit code 1)
+
 Buenas prácticas de seguridad:
 - Rotar `KV_REST_API_TOKEN` periódicamente y revocar el anterior después de validar.
 - Limitar targets si no necesitas KV en development.

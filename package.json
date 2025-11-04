@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "autopilot": "node server/autopilotServer.cjs",
-    "kv:health:prod": "node scripts/kvHealthCheck.cjs --url https://veo-free-creator.vercel.app/api/kv-health"
+    "kv:health:prod": "node scripts/kvHealthCheck.cjs --base https://veo-free-creator-4ulm23p4j-arkaios-projects.vercel.app --threshold 1000 --strict",
+    "kv:health:dev": "node scripts/kvHealthCheck.cjs --base http://localhost:3000 --threshold 1000"
   },
   "dependencies": {
     "react": "^19.2.0",
