@@ -314,10 +314,14 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({
       }
 
       // Método directo ahora: enviar al backend seguro /generate-veo
-      const backendBase =
-        (import.meta as any).env?.VITE_VEO_BACKEND_URL ||
-        "https://veo-backend.onrender.com";
-      const endpoint = `${backendBase.replace(/\/$/, "")}/generate-veo`;
+      // Si hay VITE_VEO_BACKEND_URL, usamos ese backend externo.
+      // Si no, asumimos que estamos en Vercel y llamamos a la función serverless relativa /api/generate-veo
+      const envBackend: string = (
+        (import.meta as any).env?.VITE_VEO_BACKEND_URL || ""
+      ).trim();
+      const endpoint = envBackend
+        ? `${envBackend.replace(/\/$/, "")}/generate-veo`
+        : `/api/generate-veo`;
 
       const body: any = {
         prompt: finalPrompt,
