@@ -218,13 +218,81 @@ Ejemplo de `.trae-policy.json` (ya incluido):
 }
 ```
 ### Login con Google (opcional)
-Actualmente el componente ApiKeyManager incluye un login simulado. Para integrar OAuth real:
+El componente ApiKeyManager ahora soporta dos modos:
+- Demo (sin CLIENT_ID): simula el login.
+- OAuth real: usa Google Identity Services si defines `VITE_GOOGLE_OAUTH_CLIENT_ID`.
+
+Pasos para OAuth real:
 - Crea un OAuth Client ID en Google Cloud Console (tipo Web).
 - Autoriza el origen de tu app (http://localhost:3000 y tus dominios de producción).
-- Define `VITE_GOOGLE_OAUTH_CLIENT_ID` en tu entorno.
-- Integra Google Identity Services en `ApiKeyManager` para obtener el ID token del usuario.
+- Define `VITE_GOOGLE_OAUTH_CLIENT_ID` en tu `.env.local`.
+- Usa el botón “Conectar con Google” para iniciar sesión.
+
+Tras login, el cliente decodifica el ID token para obtener email/nombre. Si eliges guardarlo en KV/Redis, tu API key se asociará a tu email.
 
 Modelo de uso de clave propia:
 - Tras login, el usuario puede pegar su propia Gemini/Veo API Key.
 - El cliente enviará la clave en la cabecera `x-gemini-api-key` al endpoint `${VITE_VEO_BACKEND_URL}/generate-veo`.
 - Tu backend puede usar esa clave para generar el video en nombre del usuario (asegúrate de no loguear la clave y de respetar políticas de seguridad).
+
+### Guardado opcional de API Key en KV/Redis
+
+Endpoint serverless incluido:
+- `POST /api/userKey` body `{ userId, apiKey, ttlSeconds? }`
+- `GET /api/userKey?userId=<email>`
+- `DELETE /api/userKey?userId=<email>`
+
+Auto-detección de backend: Vercel KV (REST) o Redis (`REDIS_URL`/`KV_REDIS_URL`/`VERCEL_REDIS_URL`). Este guardado es opcional; puedes mantener la clave únicamente en el cliente si lo prefieres.
+
+### Backend Render: uso inmediato de x-gemini-api-key
+
+Ejemplo Express:
+```ts
+import express from 'express';
+import fetch from 'node-fetch';
+
+const app = express();
+app.use(express.json({ limit: '10mb' }));
+
+app.post('/generate-veo', async (req, res) => {
+  const userKey = req.header('x-gemini-api-key');
+  const serviceKey = process.env.GEMINI_API_KEY;
+  const apiKey = userKey || serviceKey;
+  if (!apiKey) return res.status(500).json({ error: 'Missing API key' });
+
+  const { prompt, aspectRatio, model, image } = req.body || {};
+  // TODO: sustituye por la llamada real a la API de Veo/Gemini Video
+  const upstream = await fetch('https://generativeai.googleapis.com/veo:generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({ prompt, aspectRatio, model, image })
+  });
+
+  if (!upstream.ok) {
+    const text = await upstream.text();
+    return res.status(upstream.status).json({ error: 'Upstream error', details: text });
+  }
+  const data = await upstream.json();
+  return res.status(200).json(data);
+});
+
+app.get('/', (_req, res) => res.send('OK'));
+app.listen(process.env.PORT || 10000);
+```
+
+Ejemplo Fastify:
+```ts
+import Fastify from 'fastify';
+const app = Fastify({ logger: true });
+app.post('/generate-veo', async (req, reply) => {
+  const userKey = req.headers['x-gemini-api-key'] as string | undefined;
+  const serviceKey = process.env.GEMINI_API_KEY;
+  const apiKey = userKey || serviceKey;
+  if (!apiKey) return reply.code(500).send({ error: 'Missing API key' });
+  const { prompt, aspectRatio, model, image } = (req.body as any) || {};
+  // TODO: sustituye por la llamada real a la API de Veo
+  return { ok: true, prompt, aspectRatio, model, image };
+});
+app.get('/', async () => 'OK');
+app.listen({ port: Number(process.env.PORT) || 10000, host: '0.0.0.0' });
+```

@@ -24,6 +24,8 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [kvAvailable, setKvAvailable] = useState<boolean>(false);
+  const [saveInCloud, setSaveInCloud] = useState<boolean>(true);
 
   // Verificar si hay una API key del entorno al cargar
   useEffect(() => {
@@ -31,6 +33,37 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     if (envApiKey && !currentApiKey) {
       onApiKeyChange(envApiKey, 'env');
     }
+  }, []);
+
+  // Si el usuario inicia sesión y hay KV, intentar recuperar su API key guardada
+  useEffect(() => {
+    const loadStoredKey = async () => {
+      if (!kvAvailable || !googleUser?.email) return;
+      try {
+        const r = await fetch(`/api/userKey?userId=${encodeURIComponent(googleUser.email)}`);
+        if (r.ok) {
+          const j = await r.json();
+          if (j?.apiKey) {
+            onApiKeyChange(j.apiKey, 'manual');
+          }
+        }
+      } catch {}
+    };
+    loadStoredKey();
+  }, [kvAvailable, googleUser?.email]);
+
+  // Comprobar si KV/Redis está disponible en el backend
+  useEffect(() => {
+    const checkKv = async () => {
+      try {
+        const r = await fetch('/api/kvHealth');
+        const j = await r.json();
+        setKvAvailable(!!j?.usingKV || !!j?.usingRedis);
+      } catch {
+        setKvAvailable(false);
+      }
+    };
+    checkKv();
   }, []);
 
   // Simular detección de cuenta premium (en producción esto sería una llamada real a la API)
@@ -55,30 +88,62 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     setError(null);
 
     try {
-      // En producción, aquí usarías Google OAuth
-      // Por ahora simulamos el login
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const mockUser = {
-        email: 'usuario@gmail.com',
-        name: 'Usuario Premium',
-        picture: 'https://via.placeholder.com/40',
-        isPremium: false,
-        isProPlus: false,
-        geminiApiAccess: false
-      };
-
-      const premiumStatus = await detectPremiumStatus(mockUser.email);
-      const user = { ...mockUser, ...premiumStatus };
-      
-      setGoogleUser(user);
-
-      if (user.geminiApiAccess) {
-        // Si tiene acceso premium, generar/obtener su API key automáticamente
-        const premiumApiKey = 'AIzaSy_PREMIUM_' + Math.random().toString(36).substring(7);
-        onApiKeyChange(premiumApiKey, 'google');
+      const clientId = (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID;
+      if (!clientId) {
+        // Si no hay CLIENT_ID, mantenemos la simulación
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const mockUser = {
+          email: 'usuario@gmail.com',
+          name: 'Usuario Premium',
+          picture: 'https://via.placeholder.com/40',
+          isPremium: false,
+          isProPlus: false,
+          geminiApiAccess: false
+        };
+        const premiumStatus = await detectPremiumStatus(mockUser.email);
+        const user = { ...mockUser, ...premiumStatus };
+        setGoogleUser(user);
+        setError('OAuth real requiere VITE_GOOGLE_OAUTH_CLIENT_ID. Usando modo demo.');
       } else {
-        setError('Tu cuenta de Google no tiene acceso premium a Gemini API. Puedes usar el modo Local o ingresar tu propia API key.');
+        // Cargar script de Google Identity Services
+        await new Promise<void>((resolve, reject) => {
+          if ((window as any).google?.accounts?.id) return resolve();
+          const s = document.createElement('script');
+          s.src = 'https://accounts.google.com/gsi/client';
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+          document.head.appendChild(s);
+        });
+
+        // Inicializar y solicitar login
+        const google: any = (window as any).google;
+        let resolved = false;
+        await new Promise<void>((resolve, reject) => {
+          google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (resp: any) => {
+              try {
+                const idToken = resp?.credential;
+                if (!idToken) throw new Error('No id_token');
+                // Decodificar JWT (header.payload.signature)
+                const payload = JSON.parse(atob(String(idToken).split('.')[1]));
+                const email = payload?.email || 'unknown@user';
+                const name = payload?.name || 'Usuario';
+                const picture = payload?.picture || 'https://via.placeholder.com/40';
+                const premiumStatus = await detectPremiumStatus(email);
+                const user = { email, name, picture, isPremium: !!premiumStatus.isPremium, isProPlus: !!premiumStatus.isProPlus, geminiApiAccess: !!premiumStatus.geminiApiAccess } as GoogleUser;
+                setGoogleUser(user);
+                resolved = true;
+                resolve();
+              } catch (e) {
+                reject(e);
+              }
+            }
+          });
+          google.accounts.id.prompt();
+        });
+        if (!resolved) throw new Error('Login cancelado');
       }
     } catch (err) {
       setError('Error al conectar con Google. Intenta de nuevo.');
@@ -87,11 +152,24 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     }
   };
 
-  const handleManualApiKey = () => {
-    if (manualApiKey.trim()) {
-      onApiKeyChange(manualApiKey.trim(), 'manual');
-      setShowApiKeyInput(false);
-      setError(null);
+  const handleManualApiKey = async () => {
+    const key = manualApiKey.trim();
+    if (!key) return;
+    onApiKeyChange(key, 'manual');
+    setShowApiKeyInput(false);
+    setError(null);
+
+    // Guardar opcionalmente en KV si hay usuario y está habilitado
+    try {
+      if (saveInCloud && kvAvailable && googleUser?.email) {
+        await fetch('/api/userKey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: googleUser.email, apiKey: key })
+        });
+      }
+    } catch (e) {
+      console.warn('No se pudo guardar la API key en KV:', e);
     }
   };
 
@@ -148,6 +226,12 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               {googleUser.isProPlus && (
                 <span className="px-2 py-1 bg-purple-600 text-purple-100 text-xs rounded">Pro+</span>
               )}
+              {kvAvailable && (
+                <label className="flex items-center gap-2 text-xs text-gray-300">
+                  <input type="checkbox" checked={saveInCloud} onChange={(e) => setSaveInCloud(e.target.checked)} />
+                  Guardar API key en KV
+                </label>
+              )}
               <Button
                 onClick={handleLogout}
                 variant="secondary"
@@ -202,6 +286,12 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                 placeholder="Pega tu Gemini/Veo API Key aquí..."
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
               />
+              {kvAvailable && googleUser && (
+                <label className="flex items-center gap-2 text-xs text-gray-300">
+                  <input type="checkbox" checked={saveInCloud} onChange={(e) => setSaveInCloud(e.target.checked)} />
+                  Guardar en KV asociado a tu cuenta
+                </label>
+              )}
               <div className="flex space-x-2">
                 <Button
                   onClick={handleManualApiKey}
@@ -229,6 +319,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
         <p>• <strong>Google Login:</strong> Detecta automáticamente si tienes acceso premium (en desarrollo: OAuth real requerirá CLIENT_ID)</p>
         <p>• <strong>API Key Manual:</strong> Usa tu propia clave de Google AI Studio (Veo/Gemini)</p>
         <p>• <strong>Backend con clave del usuario:</strong> Si ingresas tu API key, la enviaremos al backend en la cabecera <code>x-gemini-api-key</code> para que use tus recursos (requiere soporte en el backend).</p>
+        {kvAvailable && (
+          <p>• <strong>KV/Redis:</strong> Puedes guardar tu API key asociada a tu cuenta de Google para reutilizarla en futuras sesiones.</p>
+        )}
         <p>• <strong>Modo Local:</strong> Funciona sin API para efectos básicos</p>
       </div>
     </div>
