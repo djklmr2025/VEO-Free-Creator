@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useVeoApiKey } from '../hooks/useVeoApiKey';
 import { useAuth } from '../hooks/useAuth';
-import { generateVideo, pollVideoStatus, generateSpeech, generateVideoViaPuter } from '../services/geminiService';
+import { generateSpeech, generateVideoViaPuter } from '../services/geminiService';
 import { fileToBase64 } from '../utils/fileUtils';
 import { decode, decodeAudioData, getAudioContext, playAudio } from '../utils/audioUtils';
 import Button from './Button';
@@ -267,36 +267,67 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
         return;
       }
 
-      // Direct API method
-      const imagePayload = imageBase64 && imageFile
-          ? { imageBytes: imageBase64, mimeType: imageFile.type }
-          : undefined;
-      
-      let operation = await generateVideo(finalPrompt, aspectRatio, imagePayload, veoModel);
-      
-      while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        operation = await pollVideoStatus(operation);
+      // Método directo ahora: enviar al backend seguro /generate-veo
+      const backendBase = (import.meta as any).env?.VITE_VEO_BACKEND_URL || 'https://veo-backend.onrender.com';
+      const endpoint = `${backendBase.replace(/\/$/, '')}/generate-veo`;
+
+      const body: any = {
+        prompt: finalPrompt,
+        aspectRatio,
+        model: veoModel,
+      };
+      if (imageBase64 && imageFile) {
+        body.image = { bytes: imageBase64, mimeType: imageFile.type };
       }
 
-      if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-        const sourceUri = operation.response.generatedVideos[0].video.uri;
-        // Descargar a través del proxy seguro
-        const proxiedUrl = `/api/fetchVideo?uri=${encodeURIComponent(sourceUri)}`;
-        const videoResponse = await fetch(proxiedUrl);
-        if (!videoResponse.ok) {
-          throw new Error(`Failed to download video: ${videoResponse.statusText}`);
-        }
-        const videoBlob = await videoResponse.blob();
-        const objectUrl = URL.createObjectURL(videoBlob);
-        setGeneratedVideoUrl(objectUrl);
-        // Incrementar uso diario después de generación exitosa
-        auth.incrementDailyUsage();
-        // Comunicar resultado a la app (para el chat del agente)
-        onResult?.({ videoUrl: objectUrl, sourceUri, prompt: finalPrompt });
-      } else {
-        throw new Error("Video generation failed or returned no video URI.");
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(`Backend error (${resp.status}): ${text || resp.statusText}`);
       }
+
+      const contentType = resp.headers.get('content-type') || '';
+      let sourceUri = '';
+      let objectUrl = '';
+      if (contentType.includes('application/json')) {
+        const json = await resp.json();
+        // Soportar varias formas de respuesta
+        const inlineBase64: string | undefined = json.videoBase64;
+        sourceUri = json.sourceUri || json.uri || json.videoUri || json.url || '';
+        if (inlineBase64) {
+          // data URL -> Blob
+          const mime = json.mimeType || 'video/mp4';
+          const byteChars = atob(inlineBase64);
+          const byteNumbers = new Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: mime });
+          objectUrl = URL.createObjectURL(blob);
+        } else if (sourceUri) {
+          const proxiedUrl = `/api/fetchVideo?uri=${encodeURIComponent(sourceUri)}`;
+          const videoResponse = await fetch(proxiedUrl);
+          if (!videoResponse.ok) {
+            throw new Error(`Failed to download video from source: ${videoResponse.statusText}`);
+          }
+          const videoBlob = await videoResponse.blob();
+          objectUrl = URL.createObjectURL(videoBlob);
+        } else {
+          throw new Error('Backend JSON response did not contain video data or URI.');
+        }
+      } else {
+        // Asumir respuesta binaria de video
+        const videoBlob = await resp.blob();
+        objectUrl = URL.createObjectURL(videoBlob);
+        sourceUri = 'inline-binary';
+      }
+
+      setGeneratedVideoUrl(objectUrl);
+      auth.incrementDailyUsage();
+      onResult?.({ videoUrl: objectUrl, sourceUri, prompt: finalPrompt });
     } catch (err: any) {
         const raw = typeof err === 'string' ? err : (err?.message || JSON.stringify(err));
         const errorMessage = raw || "An unknown error occurred.";

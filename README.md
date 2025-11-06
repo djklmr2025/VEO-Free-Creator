@@ -34,6 +34,13 @@ Una suite completa de herramientas de IA creativa que incluye generación de vid
      GEMINI_API_KEY=tu_clave_aqui
      ```
 
+   Opcional (usar backend propio para generación de Veo):
+   - Si tienes un backend desplegado que expone `POST /generate-veo`, define:
+     ```
+     VITE_VEO_BACKEND_URL=https://veo-backend.onrender.com
+     ```
+   - Si no lo defines, el cliente usará por defecto `https://veo-backend.onrender.com`.
+
 3. **Ejecutar en desarrollo:**
    ```bash
    npm run dev
@@ -121,6 +128,18 @@ El chat funciona directamente con Puter.js y no requiere configuración adiciona
 
 ### Generación de Video, Imágenes y TTS
 Estas funciones requieren una clave de API de Gemini configurada correctamente.
+
+#### Backend de generación (opcional)
+Puedes delegar la generación de video a un backend propio. El cliente enviará las peticiones a:
+- `POST ${VITE_VEO_BACKEND_URL}/generate-veo`
+
+Formato esperado del backend:
+- Body JSON: `{ prompt, aspectRatio, model, image?: { bytes, mimeType } }`
+- Respuesta:
+  - JSON con `videoBase64` y/o `uri`/`sourceUri`/`videoUri`/`url`, o
+  - Binario del video (por ejemplo `video/mp4` o `video/webm`).
+
+Si el backend devuelve un `uri`, el cliente descargará el video a través del proxy seguro `/api/fetchVideo?uri=...` para evitar problemas de CORS.
 
 ## 🔒 Seguridad
 
