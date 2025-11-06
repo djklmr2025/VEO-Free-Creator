@@ -117,7 +117,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   return (
     <div className="bg-gray-800 rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-white">Configuración de API</h3>
+        <h3 className="text-lg font-semibold text-white">Configuración de API (Veo/Gemini)</h3>
         {getStatusBadge()}
       </div>
 
@@ -199,7 +199,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                 type="password"
                 value={manualApiKey}
                 onChange={(e) => setManualApiKey(e.target.value)}
-                placeholder="Pega tu Gemini API Key aquí..."
+                placeholder="Pega tu Gemini/Veo API Key aquí..."
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
               />
               <div className="flex space-x-2">
@@ -226,8 +226,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       )}
 
       <div className="mt-3 text-xs text-gray-400">
-        <p>• <strong>Google Login:</strong> Detecta automáticamente si tienes acceso premium</p>
-        <p>• <strong>API Key Manual:</strong> Usa tu propia clave de Google AI Studio</p>
+        <p>• <strong>Google Login:</strong> Detecta automáticamente si tienes acceso premium (en desarrollo: OAuth real requerirá CLIENT_ID)</p>
+        <p>• <strong>API Key Manual:</strong> Usa tu propia clave de Google AI Studio (Veo/Gemini)</p>
+        <p>• <strong>Backend con clave del usuario:</strong> Si ingresas tu API key, la enviaremos al backend en la cabecera <code>x-gemini-api-key</code> para que use tus recursos (requiere soporte en el backend).</p>
         <p>• <strong>Modo Local:</strong> Funciona sin API para efectos básicos</p>
       </div>
     </div>

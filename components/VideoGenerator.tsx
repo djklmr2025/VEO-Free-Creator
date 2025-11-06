@@ -11,6 +11,10 @@ import { ApiKeyManager } from './ApiKeyManager';
 import VeoInfo from './VeoInfo';
 import VeoTester from './VeoTester';
 import VeoForceCall from './VeoForceCall';
+import { error } from "console";
+import { get } from "http";
+import { type } from "os";
+import { text } from "stream/consumers";
 
 const loadingMessages = [
   "Brewing pixels into a masterpiece...",
@@ -18,58 +22,77 @@ const loadingMessages = [
   "Rendering virtual worlds...",
   "This can take a few minutes, hang tight!",
   "Assembling the final cut...",
-  "Adding a touch of cinematic magic..."
+  "Adding a touch of cinematic magic...",
 ];
 
 type VideoGeneratorProps = {
   defaultPrompt?: string;
   autoGenerate?: boolean;
-  onResult?: (result: { videoUrl: string; sourceUri: string; prompt: string }) => void;
+  onResult?: (result: {
+    videoUrl: string;
+    sourceUri: string;
+    prompt: string;
+  }) => void;
 };
 
-const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGenerate, onResult }) => {
+const VideoGenerator: React.FC<VideoGeneratorProps> = ({
+  defaultPrompt,
+  autoGenerate,
+  onResult,
+}) => {
   const { isKeySelected, isChecking, selectKey, resetKey } = useVeoApiKey();
   const auth = useAuth();
-  const [prompt, setPrompt] = useState('');
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
-  const [veoModel, setVeoModel] = useState<'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview'>('veo-3.1-fast-generate-preview');
-  const [generationMethod, setGenerationMethod] = useState<'direct' | 'puter' | 'local'>('direct');
+  const [prompt, setPrompt] = useState("");
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
+  const [veoModel, setVeoModel] = useState<
+    "veo-3.1-fast-generate-preview" | "veo-3.1-generate-preview"
+  >("veo-3.1-fast-generate-preview");
+  const [generationMethod, setGenerationMethod] = useState<
+    "direct" | "puter" | "local"
+  >("direct");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0]);
   const [isGreetingLoading, setIsGreetingLoading] = useState(false);
   const [hasAutoPlayedGreeting, setHasAutoPlayedGreeting] = useState(false);
   const hasAutoRunRef = useRef(false);
-  
+
   // Obtener métodos disponibles basados en permisos
   const availableMethods = auth.getAvailableMethods();
-  
+
   // Ayuda: estado derivado para saber si se puede generar
   const canGenerate = (prompt?.trim()?.length ?? 0) > 0 || !!imageFile;
 
   const playGreeting = useCallback(async () => {
     setIsGreetingLoading(true);
     try {
-        const greetingText = "Bienvenido, ¿qué video deseas crear hoy?";
-        const base64Audio = await generateSpeech(greetingText, 'Kore');
-        const audioBytes = decode(base64Audio);
-        const audioContext = getAudioContext();
-        const audioBuffer = await decodeAudioData(audioBytes, audioContext, 24000, 1);
-        playAudio(audioBuffer);
+      const greetingText = "Bienvenido, ¿qué video deseas crear hoy?";
+      const base64Audio = await generateSpeech(greetingText, "Kore");
+      const audioBytes = decode(base64Audio);
+      const audioContext = getAudioContext();
+      const audioBuffer = await decodeAudioData(
+        audioBytes,
+        audioContext,
+        24000,
+        1
+      );
+      playAudio(audioBuffer);
     } catch (err) {
-        console.error("Failed to play greeting:", err);
+      console.error("Failed to play greeting:", err);
     } finally {
-        setIsGreetingLoading(false);
+      setIsGreetingLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (isKeySelected && !hasAutoPlayedGreeting) {
-        playGreeting();
-        setHasAutoPlayedGreeting(true);
+      playGreeting();
+      setHasAutoPlayedGreeting(true);
     }
   }, [isKeySelected, hasAutoPlayedGreeting, playGreeting]);
 
@@ -77,7 +100,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
     let interval: number;
     if (isLoading) {
       interval = window.setInterval(() => {
-        setLoadingMessage(prev => {
+        setLoadingMessage((prev) => {
           const currentIndex = loadingMessages.indexOf(prev);
           return loadingMessages[(currentIndex + 1) % loadingMessages.length];
         });
@@ -87,36 +110,39 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
   }, [isLoading]);
 
   const handleFile = useCallback(async (file: File) => {
-    if (file && file.type.startsWith('image/')) {
+    if (file && file.type.startsWith("image/")) {
       setImageFile(file);
       const base64 = await fileToBase64(file);
       setImageBase64(base64);
       setError(null);
     } else {
-      setError('Pasted content is not a valid image file.');
+      setError("Pasted content is not a valid image file.");
     }
   }, []);
 
-  const handlePaste = useCallback((event: ClipboardEvent) => {
-    const items = event.clipboardData?.items;
-    if (!items) return;
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items) return;
 
-    for (const item of Array.from(items)) {
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          handleFile(file);
-          event.preventDefault();
-          break;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            handleFile(file);
+            event.preventDefault();
+            break;
+          }
         }
       }
-    }
-  }, [handleFile]);
+    },
+    [handleFile]
+  );
 
   useEffect(() => {
-    window.addEventListener('paste', handlePaste);
+    window.addEventListener("paste", handlePaste);
     return () => {
-      window.removeEventListener('paste', handlePaste);
+      window.removeEventListener("paste", handlePaste);
     };
   }, [handlePaste]);
 
@@ -148,31 +174,40 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
           img.onerror = (e) => rej(e);
         });
 
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas context not available'));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas context not available"));
 
-        if (!('captureStream' in canvas) || typeof MediaRecorder === 'undefined') {
-          return reject(new Error('Tu navegador no soporta la grabación de video (MediaRecorder).'));
+        if (
+          !("captureStream" in canvas) ||
+          typeof MediaRecorder === "undefined"
+        ) {
+          return reject(
+            new Error(
+              "Tu navegador no soporta la grabación de video (MediaRecorder)."
+            )
+          );
         }
 
         const fps = 30;
         const stream = (canvas as any).captureStream(fps);
-        const options: MediaRecorderOptions = { mimeType: 'video/webm;codecs=vp9' };
+        const options: MediaRecorderOptions = {
+          mimeType: "video/webm;codecs=vp9",
+        };
         let recorder: MediaRecorder;
         try {
           recorder = new MediaRecorder(stream, options);
         } catch {
           // Fallback a simple webm
-          recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+          recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
         }
 
         const chunks: BlobPart[] = [];
         recorder.ondataavailable = (e) => e.data && chunks.push(e.data);
         recorder.onstop = () => {
-          const blob = new Blob(chunks, { type: 'video/webm' });
+          const blob = new Blob(chunks, { type: "video/webm" });
           resolve(blob);
         };
 
@@ -185,11 +220,11 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
           const t = Math.min(1, (now - start) / (end - start));
           // Zoom suave y pan
           const zoom = 1.1 + 0.25 * t; // de 1.1 a ~1.35
-          const panX = (img.width * 0.05) * t; // leve pan hacia la derecha
-          const panY = (img.height * 0.05) * t; // leve pan hacia abajo
+          const panX = img.width * 0.05 * t; // leve pan hacia la derecha
+          const panY = img.height * 0.05 * t; // leve pan hacia abajo
 
           // Limpiar lienzo
-          ctx.fillStyle = '#000';
+          ctx.fillStyle = "#000";
           ctx.fillRect(0, 0, width, height);
 
           // Calcular ajuste para cubrir canvas manteniendo aspecto
@@ -243,24 +278,35 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
 
     try {
       // Modo local: genera un video sin usar APIs (requiere imagen)
-      if (generationMethod === 'local') {
+      if (generationMethod === "local") {
         if (!imageBase64 || !imageFile) {
-          throw new Error('Para el modo local, sube una imagen para crear el video.');
+          throw new Error(
+            "Para el modo local, sube una imagen para crear el video."
+          );
         }
-        const isPortrait = aspectRatio === '9:16';
+        const isPortrait = aspectRatio === "9:16";
         const width = isPortrait ? 720 : 1280;
         const height = isPortrait ? 1280 : 720;
         const dataUrl = `data:${imageFile.type};base64,${imageBase64}`;
-        const blob = await createKenBurnsVideoFromImage(dataUrl, 6, width, height);
+        const blob = await createKenBurnsVideoFromImage(
+          dataUrl,
+          6,
+          width,
+          height
+        );
         const objectUrl = URL.createObjectURL(blob);
         setGeneratedVideoUrl(objectUrl);
         // Incrementar uso diario después de generación exitosa
         auth.incrementDailyUsage();
-        onResult?.({ videoUrl: objectUrl, sourceUri: 'local-generated', prompt: finalPrompt });
+        onResult?.({
+          videoUrl: objectUrl,
+          sourceUri: "local-generated",
+          prompt: finalPrompt,
+        });
         return;
       }
 
-      if (generationMethod === 'puter') {
+      if (generationMethod === "puter") {
         // Use Puter.js method for video generation
         const result = await generateVideoViaPuter(finalPrompt, aspectRatio);
         setError(`Puter.js Response: ${result}`);
@@ -268,8 +314,10 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
       }
 
       // Método directo ahora: enviar al backend seguro /generate-veo
-      const backendBase = (import.meta as any).env?.VITE_VEO_BACKEND_URL || 'https://veo-backend.onrender.com';
-      const endpoint = `${backendBase.replace(/\/$/, '')}/generate-veo`;
+      const backendBase =
+        (import.meta as any).env?.VITE_VEO_BACKEND_URL ||
+        "https://veo-backend.onrender.com";
+      const endpoint = `${backendBase.replace(/\/$/, "")}/generate-veo`;
 
       const body: any = {
         prompt: finalPrompt,
@@ -280,69 +328,93 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
         body.image = { bytes: imageBase64, mimeType: imageFile.type };
       }
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      // Si el usuario ingresó su propia API key, enviarla al backend para uso dedicado
+      if (auth.apiKey) {
+        headers["x-gemini-api-key"] = auth.apiKey;
+      }
       const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers,
         body: JSON.stringify(body),
       });
       if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(`Backend error (${resp.status}): ${text || resp.statusText}`);
+        const text = await resp.text().catch(() => "");
+        throw new Error(
+          `Backend error (${resp.status}): ${text || resp.statusText}`
+        );
       }
 
-      const contentType = resp.headers.get('content-type') || '';
-      let sourceUri = '';
-      let objectUrl = '';
-      if (contentType.includes('application/json')) {
+      const contentType = resp.headers.get("content-type") || "";
+      let sourceUri = "";
+      let objectUrl = "";
+      if (contentType.includes("application/json")) {
         const json = await resp.json();
         // Soportar varias formas de respuesta
         const inlineBase64: string | undefined = json.videoBase64;
-        sourceUri = json.sourceUri || json.uri || json.videoUri || json.url || '';
+        sourceUri =
+          json.sourceUri || json.uri || json.videoUri || json.url || "";
         if (inlineBase64) {
           // data URL -> Blob
-          const mime = json.mimeType || 'video/mp4';
+          const mime = json.mimeType || "video/mp4";
           const byteChars = atob(inlineBase64);
           const byteNumbers = new Array(byteChars.length);
-          for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+          for (let i = 0; i < byteChars.length; i++)
+            byteNumbers[i] = byteChars.charCodeAt(i);
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: mime });
           objectUrl = URL.createObjectURL(blob);
         } else if (sourceUri) {
-          const proxiedUrl = `/api/fetchVideo?uri=${encodeURIComponent(sourceUri)}`;
+          const proxiedUrl = `/api/fetchVideo?uri=${encodeURIComponent(
+            sourceUri
+          )}`;
           const videoResponse = await fetch(proxiedUrl);
           if (!videoResponse.ok) {
-            throw new Error(`Failed to download video from source: ${videoResponse.statusText}`);
+            throw new Error(
+              `Failed to download video from source: ${videoResponse.statusText}`
+            );
           }
           const videoBlob = await videoResponse.blob();
           objectUrl = URL.createObjectURL(videoBlob);
         } else {
-          throw new Error('Backend JSON response did not contain video data or URI.');
+          throw new Error(
+            "Backend JSON response did not contain video data or URI."
+          );
         }
       } else {
         // Asumir respuesta binaria de video
         const videoBlob = await resp.blob();
         objectUrl = URL.createObjectURL(videoBlob);
-        sourceUri = 'inline-binary';
+        sourceUri = "inline-binary";
       }
 
       setGeneratedVideoUrl(objectUrl);
       auth.incrementDailyUsage();
       onResult?.({ videoUrl: objectUrl, sourceUri, prompt: finalPrompt });
     } catch (err: any) {
-        const raw = typeof err === 'string' ? err : (err?.message || JSON.stringify(err));
-        const errorMessage = raw || "An unknown error occurred.";
-        // Mensaje genérico
-        let uiMessage = `Error: ${errorMessage}`;
-        // Mensaje amigable para cuota/429
-        const msgLower = errorMessage.toLowerCase();
-        if (msgLower.includes('resource_exhausted') || msgLower.includes('quota') || msgLower.includes('429')) {
-            uiMessage = `Error 429 / cuota agotada: Has excedido tu cuota actual para la API de Gemini. Configura facturación o revisa tus límites en AI Studio.\n\nPasos: 1) Abre https://ai.google.dev/usage para ver uso y límites. 2) Configura facturación (https://ai.google.dev/gemini-api/docs/billing). 3) Prueba el modelo 'Veo 3.1 Fast (720p)' y reduce la frecuencia de solicitud.\n\nDetalle técnico: ${errorMessage}`;
-        }
-        setError(uiMessage);
-        if (errorMessage.includes("Requested entity was not found.")) {
-            setError("API Key not found or invalid. Please select your API key again.");
-            resetKey();
-        }
+      const raw =
+        typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      const errorMessage = raw || "An unknown error occurred.";
+      // Mensaje genérico
+      let uiMessage = `Error: ${errorMessage}`;
+      // Mensaje amigable para cuota/429
+      const msgLower = errorMessage.toLowerCase();
+      if (
+        msgLower.includes("resource_exhausted") ||
+        msgLower.includes("quota") ||
+        msgLower.includes("429")
+      ) {
+        uiMessage = `Error 429 / cuota agotada: Has excedido tu cuota actual para la API de Gemini. Configura facturación o revisa tus límites en AI Studio.\n\nPasos: 1) Abre https://ai.google.dev/usage para ver uso y límites. 2) Configura facturación (https://ai.google.dev/gemini-api/docs/billing). 3) Prueba el modelo 'Veo 3.1 Fast (720p)' y reduce la frecuencia de solicitud.\n\nDetalle técnico: ${errorMessage}`;
+      }
+      setError(uiMessage);
+      if (errorMessage.includes("Requested entity was not found.")) {
+        setError(
+          "API Key not found or invalid. Please select your API key again."
+        );
+        resetKey();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -357,10 +429,15 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
 
   // Auto-generate once when instructed and key is selected
   useEffect(() => {
-    if (autoGenerate && defaultPrompt && isKeySelected && !hasAutoRunRef.current) {
+    if (
+      autoGenerate &&
+      defaultPrompt &&
+      isKeySelected &&
+      !hasAutoRunRef.current
+    ) {
       hasAutoRunRef.current = true;
       const run = async () => {
-        await new Promise(r => setTimeout(r, 0));
+        await new Promise((r) => setTimeout(r, 0));
         handleGenerate(defaultPrompt);
       };
       run();
@@ -368,214 +445,323 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ defaultPrompt, autoGene
   }, [autoGenerate, defaultPrompt, isKeySelected]);
 
   if (isChecking) {
-    return <div className="flex items-center justify-center h-48"><Spinner className="h-8 w-8"/></div>;
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
   }
-  
+
   // Mostrar ApiKeyManager si no hay autenticación
   if (!auth.isAuthenticated && !isKeySelected) {
     return (
-        <div>
-            <ApiKeyManager 
-                onApiKeyChange={(apiKey, source) => {
-                    auth.updateApiKey(apiKey, source);
-                    if (apiKey && source !== 'env') {
-                        selectKey(); // Mantener compatibilidad con el sistema existente
-                    }
-                }}
-                currentApiKey={auth.apiKey || undefined}
-            />
-            <div className="text-center p-8 bg-gray-800 rounded-lg mt-4">
-                <h3 className="text-xl font-bold mb-4">¿Prefieres el método clásico?</h3>
-                <p className="mb-4 text-gray-400">También puedes usar el selector de API key original.</p>
-                <Button onClick={selectKey} variant="secondary">Selector Clásico</Button>
-            </div>
+      <div>
+        <ApiKeyManager
+          onApiKeyChange={(apiKey, source) => {
+            auth.updateApiKey(apiKey, source);
+            if (apiKey && source !== "env") {
+              selectKey(); // Mantener compatibilidad con el sistema existente
+            }
+          }}
+          currentApiKey={auth.apiKey || undefined}
+        />
+        <div className="text-center p-8 bg-gray-800 rounded-lg mt-4">
+          <h3 className="text-xl font-bold mb-4">
+            ¿Prefieres el método clásico?
+          </h3>
+          <p className="mb-4 text-gray-400">
+            También puedes usar el selector de API key original.
+          </p>
+          <Button onClick={selectKey} variant="secondary">
+            Selector Clásico
+          </Button>
         </div>
+      </div>
     );
   }
 
   return (
     <div>
       <div className="flex items-center gap-4 mb-1">
-          <h2 className="text-3xl font-bold text-white">Veo Video Generation</h2>
-          <button 
-              onClick={playGreeting} 
-              disabled={isGreetingLoading} 
-              className="text-gray-400 hover:text-white disabled:text-gray-600 transition-colors"
-              aria-label="Play greeting"
-          >
-              {isGreetingLoading ? <Spinner className="h-5 w-5 animate-spin" /> : <SpeakerIcon className="h-5 w-5"/>}
-          </button>
+        <h2 className="text-3xl font-bold text-white">Veo Video Generation</h2>
+        <button
+          onClick={playGreeting}
+          disabled={isGreetingLoading}
+          className="text-gray-400 hover:text-white disabled:text-gray-600 transition-colors"
+          aria-label="Play greeting"
+        >
+          {isGreetingLoading ? (
+            <Spinner className="h-5 w-5 animate-spin" />
+          ) : (
+            <SpeakerIcon className="h-5 w-5" />
+          )}
+        </button>
       </div>
-      <p className="text-gray-400 mb-6">Create high-quality videos from text or an image using Veo 3. Paste an image anywhere to get started.</p>
-      
+      <p className="text-gray-400 mb-6">
+        Create high-quality videos from text or an image using Veo 3. Paste an
+        image anywhere to get started.
+      </p>
+
       <VeoInfo />
-      
-      <VeoTester onTestComplete={(method, result) => {
-        console.log(`Test completed for ${method}:`, result);
-      }} />
-      
+
+      <VeoTester
+        onTestComplete={(method, result) => {
+          console.log(`Test completed for ${method}:`, result);
+        }}
+      />
+
       <VeoForceCall />
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4 flex flex-col">
-              <div>
-                  <label htmlFor="prompt-textarea" className="block text-sm font-medium text-gray-300 mb-2">Prompt</label>
-                  <textarea
-                      id="prompt-textarea"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="e.g., A neon hologram of a cat driving at top speed"
-                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-gemini-blue focus:outline-none transition"
-                      rows={7}
-                      disabled={isLoading}
-                  />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2">
-                      <label className="font-medium text-sm text-gray-300">Aspect Ratio:</label>
-                      <select
-                          value={aspectRatio}
-                          onChange={(e) => setAspectRatio(e.target.value as '16:9' | '9:16')}
-                          className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
-                          disabled={isLoading}
-                      >
-                          <option value="16:9">16:9 (Landscape)</option>
-                          <option value="9:16">9:16 (Portrait)</option>
-                      </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <label className="font-medium text-sm text-gray-300">Veo Model:</label>
-                      <select
-                          value={veoModel}
-                          onChange={(e) => setVeoModel(e.target.value as 'veo-3.1-fast-generate-preview' | 'veo-3.1-generate-preview')}
-                          className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
-                          disabled={isLoading}
-                      >
-                          <option value="veo-3.1-fast-generate-preview">Veo 3.1 Fast (720p)</option>
-                          <option value="veo-3.1-generate-preview">Veo 3.1 Standard (1080p)</option>
-                      </select>
-                  </div>
-              </div>
-              <div className="flex items-center gap-4">
-                  <label className="font-medium text-sm text-gray-300">Generation Method:</label>
-                  <div className="flex gap-4 flex-wrap">
-                      {availableMethods.map((method) => (
-                          <label key={method.id} className="flex items-center gap-2 text-sm text-gray-300">
-                              <input
-                                  type="radio"
-                                  value={method.id}
-                                  checked={generationMethod === method.id}
-                                  onChange={(e) => setGenerationMethod(e.target.value as 'direct' | 'puter' | 'local')}
-                                  className="text-gemini-blue focus:ring-gemini-blue"
-                                  disabled={isLoading}
-                              />
-                              <span className="flex items-center gap-1">
-                                  {method.name}
-                                  {method.premium && (
-                                      <span className="px-1 py-0.5 bg-yellow-600 text-yellow-100 text-xs rounded">
-                                          {auth.isProPlus ? 'Pro+' : auth.isPremium ? 'Premium' : 'API'}
-                                      </span>
-                                  )}
-                              </span>
-                          </label>
-                      ))}
-                  </div>
-              </div>
-              
-              {/* Mostrar información de uso diario */}
-              <div className="bg-gray-700 rounded p-3 text-sm">
-                  <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-300">Uso diario:</span>
-                      <span className="text-white">
-                          {auth.permissions.maxVideosPerDay === -1 
-                              ? `${auth.dailyUsage} (Ilimitado)` 
-                              : `${auth.dailyUsage}/${auth.permissions.maxVideosPerDay}`
-                          }
-                      </span>
-                  </div>
-                  <div className="w-full bg-gray-600 rounded-full h-2">
-                      <div 
-                          className={`h-2 rounded-full transition-all ${
-                              auth.permissions.maxVideosPerDay === -1 
-                                  ? 'bg-green-500 w-full' 
-                                  : auth.dailyUsage >= auth.permissions.maxVideosPerDay 
-                                      ? 'bg-red-500 w-full' 
-                                      : 'bg-blue-500'
-                          }`}
-                          style={{
-                              width: auth.permissions.maxVideosPerDay === -1 
-                                  ? '100%' 
-                                  : `${Math.min((auth.dailyUsage / auth.permissions.maxVideosPerDay) * 100, 100)}%`
-                          }}
-                      />
-                  </div>
-                  {!auth.permissions.hasUnlimitedQuota && auth.dailyUsage >= auth.permissions.maxVideosPerDay && (
-                      <p className="text-red-400 text-xs mt-2">
-                          Has alcanzado el límite diario. {!auth.isAuthenticated && 'Conecta tu cuenta para aumentar el límite.'}
-                      </p>
-                  )}
-              </div>
+        <div className="space-y-4 flex flex-col">
+          <div>
+            <label
+              htmlFor="prompt-textarea"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
+              Prompt
+            </label>
+            <textarea
+              id="prompt-textarea"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="e.g., A neon hologram of a cat driving at top speed"
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-gemini-blue focus:outline-none transition"
+              rows={7}
+              disabled={isLoading}
+            />
           </div>
-          <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-300">Optional: Start with an image</label>
-              {!imageBase64 ? (
-                  <div className="flex justify-center items-center h-full px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
-                      <div className="space-y-1 text-center">
-                          <UploadIcon className="mx-auto h-12 w-12 text-gray-500" />
-                          <div className="flex text-sm text-gray-400">
-                              <label htmlFor="image-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-gemini-blue hover:text-gemini-blue/80 focus-within:outline-none">
-                                  <span>Upload a file</span>
-                                  <input id="image-upload" name="image-upload" type="file" className="sr-only" accept="image/*" onChange={handleFileChange} disabled={isLoading} />
-                              </label>
-                              <p className="pl-1">or drag and drop</p>
-                          </div>
-                          <p className="text-xs text-gray-500">or paste an image (Ctrl+V)</p>
-                      </div>
-                  </div>
-              ) : (
-                  <div className="relative">
-                      <img src={`data:${imageFile?.type};base64,${imageBase64}`} alt="Uploaded preview" className="w-full h-auto object-contain max-h-64 rounded-lg shadow-md" />
-                      <button
-                          onClick={removeImage}
-                          className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/80 transition-colors"
-                          aria-label="Remove image"
-                      >
-                          <XIcon className="h-5 w-5" />
-                      </button>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-2">
+              <label className="font-medium text-sm text-gray-300">
+                Aspect Ratio:
+              </label>
+              <select
+                value={aspectRatio}
+                onChange={(e) =>
+                  setAspectRatio(e.target.value as "16:9" | "9:16")
+                }
+                className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
+                disabled={isLoading}
+              >
+                <option value="16:9">16:9 (Landscape)</option>
+                <option value="9:16">9:16 (Portrait)</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="font-medium text-sm text-gray-300">
+                Veo Model:
+              </label>
+              <select
+                value={veoModel}
+                onChange={(e) =>
+                  setVeoModel(
+                    e.target.value as
+                      | "veo-3.1-fast-generate-preview"
+                      | "veo-3.1-generate-preview"
+                  )
+                }
+                className="bg-gray-700 border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-gemini-blue focus:outline-none"
+                disabled={isLoading}
+              >
+                <option value="veo-3.1-fast-generate-preview">
+                  Veo 3.1 Fast (720p)
+                </option>
+                <option value="veo-3.1-generate-preview">
+                  Veo 3.1 Standard (1080p)
+                </option>
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="font-medium text-sm text-gray-300">
+              Generation Method:
+            </label>
+            <div className="flex gap-4 flex-wrap">
+              {availableMethods.map((method) => (
+                <label
+                  key={method.id}
+                  className="flex items-center gap-2 text-sm text-gray-300"
+                >
+                  <input
+                    type="radio"
+                    value={method.id}
+                    checked={generationMethod === method.id}
+                    onChange={(e) =>
+                      setGenerationMethod(
+                        e.target.value as "direct" | "puter" | "local"
+                      )
+                    }
+                    className="text-gemini-blue focus:ring-gemini-blue"
+                    disabled={isLoading}
+                  />
+                  <span className="flex items-center gap-1">
+                    {method.name}
+                    {method.premium && (
+                      <span className="px-1 py-0.5 bg-yellow-600 text-yellow-100 text-xs rounded">
+                        {auth.isProPlus
+                          ? "Pro+"
+                          : auth.isPremium
+                          ? "Premium"
+                          : "API"}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Mostrar información de uso diario */}
+          <div className="bg-gray-700 rounded p-3 text-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-300">Uso diario:</span>
+              <span className="text-white">
+                {auth.permissions.maxVideosPerDay === -1
+                  ? `${auth.dailyUsage} (Ilimitado)`
+                  : `${auth.dailyUsage}/${auth.permissions.maxVideosPerDay}`}
+              </span>
+            </div>
+            <div className="w-full bg-gray-600 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${
+                  auth.permissions.maxVideosPerDay === -1
+                    ? "bg-green-500 w-full"
+                    : auth.dailyUsage >= auth.permissions.maxVideosPerDay
+                    ? "bg-red-500 w-full"
+                    : "bg-blue-500"
+                }`}
+                style={{
+                  width:
+                    auth.permissions.maxVideosPerDay === -1
+                      ? "100%"
+                      : `${Math.min(
+                          (auth.dailyUsage / auth.permissions.maxVideosPerDay) *
+                            100,
+                          100
+                        )}%`,
+                }}
+              />
+            </div>
+            {!auth.permissions.hasUnlimitedQuota &&
+              auth.dailyUsage >= auth.permissions.maxVideosPerDay && (
+                <p className="text-red-400 text-xs mt-2">
+                  Has alcanzado el límite diario.{" "}
+                  {!auth.isAuthenticated &&
+                    "Conecta tu cuenta para aumentar el límite."}
+                </p>
               )}
           </div>
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300">
+            Optional: Start with an image
+          </label>
+          {!imageBase64 ? (
+            <div className="flex justify-center items-center h-full px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
+                <UploadIcon className="mx-auto h-12 w-12 text-gray-500" />
+                <div className="flex text-sm text-gray-400">
+                  <label
+                    htmlFor="image-upload"
+                    className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-gemini-blue hover:text-gemini-blue/80 focus-within:outline-none"
+                  >
+                    <span>Upload a file</span>
+                    <input
+                      id="image-upload"
+                      name="image-upload"
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      disabled={isLoading}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">
+                  or paste an image (Ctrl+V)
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <img
+                src={`data:${imageFile?.type};base64,${imageBase64}`}
+                alt="Uploaded preview"
+                className="w-full h-auto object-contain max-h-64 rounded-lg shadow-md"
+              />
+              <button
+                onClick={removeImage}
+                className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/80 transition-colors"
+                aria-label="Remove image"
+              >
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 relative z-30">
-          {/* onClick must NOT pass the MouseEvent to handleGenerate, wrap to avoid treating event as prompt */}
-          <Button onClick={() => handleGenerate()} isLoading={isLoading} disabled={isLoading || !canGenerate}>
-              {isLoading ? 'Generating...' : 'Generate Video'}
-          </Button>
-          {/* Debug mínimo para diagnosticar botón inactivo (se puede ocultar luego) */}
-          <div className="mt-2 text-xs text-gray-400">Estado: loading={String(isLoading)} · promptChars={(prompt?.trim()?.length ?? 0)} · image={String(!!imageFile)}</div>
+        {/* onClick must NOT pass the MouseEvent to handleGenerate, wrap to avoid treating event as prompt */}
+        <Button
+          onClick={() => handleGenerate()}
+          isLoading={isLoading}
+          disabled={isLoading || !canGenerate}
+        >
+          {isLoading ? "Generating..." : "Generate Video"}
+        </Button>
+        {/* Debug mínimo para diagnosticar botón inactivo (se puede ocultar luego) */}
+        <div className="mt-2 text-xs text-gray-400">
+          Estado: loading={String(isLoading)} · promptChars=
+          {prompt?.trim()?.length ?? 0} · image={String(!!imageFile)}
+        </div>
       </div>
 
-      {error && <div className="mt-4 p-3 bg-red-900/50 text-red-300 border border-red-700 rounded-lg">{error}</div>}
+      {error && (
+        <div className="mt-4 p-3 bg-red-900/50 text-red-300 border border-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {isLoading && (
-          <div className="mt-6 text-center p-8 bg-gray-900/50 rounded-lg">
-              <Spinner className="h-12 w-12 mx-auto animate-spin text-gemini-blue"/>
-              <p className="mt-4 font-medium text-lg">{loadingMessage}</p>
-          </div>
+        <div className="mt-6 text-center p-8 bg-gray-900/50 rounded-lg">
+          <Spinner className="h-12 w-12 mx-auto animate-spin text-gemini-blue" />
+          <p className="mt-4 font-medium text-lg">{loadingMessage}</p>
+        </div>
       )}
-      
+
       {generatedVideoUrl && (
         <div className="mt-6">
           <h3 className="text-xl font-semibold mb-4">Generated Video:</h3>
-          <video src={generatedVideoUrl} controls autoPlay loop className="w-full rounded-lg shadow-lg" />
+          <video
+            src={generatedVideoUrl}
+            controls
+            autoPlay
+            loop
+            className="w-full rounded-lg shadow-lg"
+          />
           <div className="mt-3 text-sm text-gray-300 flex items-center gap-4">
-            <a href={generatedVideoUrl} target="_blank" rel="noopener noreferrer" className="text-gemini-blue underline">Open in new tab</a>
+            <a
+              href={generatedVideoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gemini-blue underline"
+            >
+              Open in new tab
+            </a>
             {/* Provide the original URI for debugging/traceability (may require auth) */}
             <button
-              onClick={() => navigator.clipboard.writeText((generatedVideoUrl || '') as string)}
+              onClick={() =>
+                navigator.clipboard.writeText(
+                  (generatedVideoUrl || "") as string
+                )
+              }
               className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600"
-            >Copy player URL</button>
+            >
+              Copy player URL
+            </button>
           </div>
         </div>
       )}

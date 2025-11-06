@@ -71,6 +71,8 @@ Una suite completa de herramientas de IA creativa que incluye generación de vid
 
 3. **Variables de entorno:**
    - Añade: `GEMINI_API_KEY` con tu clave de API
+   - Opcional: `VITE_VEO_BACKEND_URL` si usarás un backend propio
+   - Opcional: `VITE_GOOGLE_OAUTH_CLIENT_ID` para activar login real con Google (OAuth)
 
 ## 🗄️ Storage / KV (Persistencia del estado Autopilot)
 
@@ -215,3 +217,14 @@ Ejemplo de `.trae-policy.json` (ya incluido):
   "log_actions": true
 }
 ```
+### Login con Google (opcional)
+Actualmente el componente ApiKeyManager incluye un login simulado. Para integrar OAuth real:
+- Crea un OAuth Client ID en Google Cloud Console (tipo Web).
+- Autoriza el origen de tu app (http://localhost:3000 y tus dominios de producción).
+- Define `VITE_GOOGLE_OAUTH_CLIENT_ID` en tu entorno.
+- Integra Google Identity Services en `ApiKeyManager` para obtener el ID token del usuario.
+
+Modelo de uso de clave propia:
+- Tras login, el usuario puede pegar su propia Gemini/Veo API Key.
+- El cliente enviará la clave en la cabecera `x-gemini-api-key` al endpoint `${VITE_VEO_BACKEND_URL}/generate-veo`.
+- Tu backend puede usar esa clave para generar el video en nombre del usuario (asegúrate de no loguear la clave y de respetar políticas de seguridad).
