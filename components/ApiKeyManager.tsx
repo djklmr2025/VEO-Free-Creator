@@ -131,6 +131,23 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                 const email = payload?.email || 'unknown@user';
                 const name = payload?.name || 'Usuario';
                 const picture = payload?.picture || 'https://via.placeholder.com/40';
+
+                // Validación opcional del token en el backend
+                try {
+                  const vr = await fetch('/api/verify-google-id', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                  });
+                  if (!vr.ok) {
+                    const err = await vr.json().catch(() => ({}));
+                    throw new Error('Token inválido en servidor');
+                  }
+                } catch (e) {
+                  console.warn('Fallo validación servidor:', e);
+                  setError('No se pudo validar tu sesión en el servidor. Intenta de nuevo.');
+                }
+
                 const premiumStatus = await detectPremiumStatus(email);
                 const user = { email, name, picture, isPremium: !!premiumStatus.isPremium, isProPlus: !!premiumStatus.isProPlus, geminiApiAccess: !!premiumStatus.geminiApiAccess } as GoogleUser;
                 setGoogleUser(user);

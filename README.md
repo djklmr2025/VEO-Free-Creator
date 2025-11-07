@@ -296,3 +296,17 @@ app.post('/generate-veo', async (req, reply) => {
 app.get('/', async () => 'OK');
 app.listen({ port: Number(process.env.PORT) || 10000, host: '0.0.0.0' });
 ```
+### Validación de id_token de Google en el servidor
+
+Endpoint incluido:
+- `POST /api/verify-google-id` body `{ idToken }`
+- Valida el token con `oauth2.googleapis.com/tokeninfo` y comprueba `iss`, `exp` y, si está configurado, la audiencia (`aud`).
+
+Variables de entorno:
+- `VITE_GOOGLE_OAUTH_CLIENT_ID` (cliente, necesario para login real en el frontend)
+- `GOOGLE_OAUTH_CLIENT_ID` (servidor, opcional pero recomendado para forzar la coincidencia de `aud` en la validación)
+
+Pasos:
+1. Define `VITE_GOOGLE_OAUTH_CLIENT_ID` en Vercel (Production/Preview/Development) y redeploy.
+2. Define `GOOGLE_OAUTH_CLIENT_ID` en Vercel (solo servidor) con el mismo Client ID para que el backend compruebe `aud`.
+3. El flujo de login del frontend llamará al endpoint de validación y mostrará error si la validación falla.
