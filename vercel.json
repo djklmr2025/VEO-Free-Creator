@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "devCommand": "npm run dev",
+  "env": {
+    "VITE_GOOGLE_OAUTH_CLIENT_ID": "115991209673-81007jgco782amif1lh8v2sl4l2t09fm.apps.googleusercontent.com",
+    "GOOGLE_OAUTH_CLIENT_ID": "115991209673-81007jgco782amif1lh8v2sl4l2t09fm.apps.googleusercontent.com"
+  },
   
   
   "rewrites": [
