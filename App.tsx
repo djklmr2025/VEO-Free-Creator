@@ -7,7 +7,6 @@ import VideoGenerator from './components/VideoGenerator';
 import ImageGenerator from './components/ImageGenerator';
 import { VideoAgent } from './components/VideoAgent';
 import { InternalLab } from './components/InternalLab';
-import ApiDiagnostics from './components/ApiDiagnostics';
 import { LanguageSelector } from './components/LanguageSelector';
 import AutopilotToggle from './components/AutopilotToggle';
 
@@ -177,14 +176,11 @@ const TabContent: React.FC<any> = ({ activeTab, videoPrefill, imagePrefill, onIn
   if (activeTab === 'chat') return <FastChat onIntent={onIntent} />;
   if (activeTab === 'agent') return <VideoAgent onVideoGenerate={onVideoAgentGenerate} externalEvent={externalVideoEvent} />;
   if (activeTab === 'video') return (
-    <>
-      <VideoGenerator 
-        defaultPrompt={videoPrefill?.prompt}
-        autoGenerate={videoPrefill?.autoGenerate}
-        onResult={onVideoGenerated}
-      />
-      <ApiDiagnostics />
-    </>
+    <VideoGenerator 
+      defaultPrompt={videoPrefill?.prompt}
+      autoGenerate={videoPrefill?.autoGenerate}
+      onResult={onVideoGenerated}
+    />
   );
   if (activeTab === 'image') return <ImageGenerator defaultPrompt={imagePrefill?.prompt} autoGenerate={imagePrefill?.autoGenerate} />;
   return <FastChat onIntent={onIntent} />;

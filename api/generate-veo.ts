@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 3. Call the actual Google Gemini API
-    const model = 'gemini-pro';
+    const model = 'gemini-2.5-pro';
     // Corrected the API endpoint from 'v1beta' to 'v1'
     const upstreamUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
