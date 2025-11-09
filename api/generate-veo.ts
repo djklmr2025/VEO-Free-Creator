@@ -34,16 +34,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 3. Call the actual Google Gemini API
-    const model = 'gemini-pro'; // Corrected model name to a valid, public model
-    const upstreamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const model = 'gemini-pro';
+    // Corrected the API endpoint from 'v1beta' to 'v1'
+    const upstreamUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
     // 4. Construct the request body in the format required by the Gemini API.
     const requestBody = {
       "contents": [
         {
           "parts": [
-            // Note: The prompt is enhanced to guide the model towards video generation.
-            { "text": `Generate a short, high-quality video based on the following description: ${prompt}` }
+            { "text": prompt }
           ]
         }
       ],
@@ -65,7 +65,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const responseData = await upstreamResp.json();
     
     // 6. Return the successful response from Google back to the client.
-    // The client-side will need to know how to handle this response structure.
     return res.status(200).json(responseData);
 
   } catch (err: any) {
