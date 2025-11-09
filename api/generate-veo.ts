@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 3. Call the actual Google Gemini API
-    const model = 'gemini-1.5-pro-latest'; // Using a powerful, publicly available model
+    const model = 'gemini-pro'; // Corrected model name to a valid, public model
     const upstreamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     // 4. Construct the request body in the format required by the Gemini API.
