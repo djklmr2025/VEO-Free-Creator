@@ -29,7 +29,6 @@ export default function App() {
   const [keySequence, setKeySequence] = useState<string[]>([]);
   const [latestVideoEvent, setLatestVideoEvent] = useState<{ url: string; sourceUri: string; prompt: string } | null>(null);
 
-  // Secuencia secreta para abrir el laboratorio: Ctrl+Shift+L+A+B
   const SECRET_SEQUENCE = ['Control', 'Shift', 'KeyL', 'KeyA', 'KeyB'];
 
   useEffect(() => {
@@ -41,7 +40,6 @@ export default function App() {
       const newSequence = [...keySequence, key].slice(-SECRET_SEQUENCE.length);
       setKeySequence(newSequence);
 
-      // Verificar si la secuencia coincide
       if (newSequence.length === SECRET_SEQUENCE.length &&
           newSequence.every((k, i) => k === SECRET_SEQUENCE[i])) {
         setShowInternalLab(true);
@@ -50,7 +48,6 @@ export default function App() {
     };
 
     const handleKeyUp = () => {
-      // Limpiar secuencia después de un tiempo
       setTimeout(() => setKeySequence([]), 2000);
     };
 
@@ -80,11 +77,8 @@ export default function App() {
 
   const handleVideoGenerated = (result: { videoUrl: string; sourceUri: string; prompt: string }) => {
     setLatestVideoEvent({ url: result.videoUrl, sourceUri: result.sourceUri, prompt: result.prompt });
-    // Opcional: regresar al agente automáticamente
-    // setActiveTab('agent');
   };
 
-  // Clear prefill data when switching tabs manually
   useEffect(() => {
     if (activeTab !== 'video') {
       setVideoPrefill(null);
@@ -117,7 +111,7 @@ export default function App() {
               setActiveTab={setActiveTab}
             />
 
-            <div className="min-h-[600px]">
+            <div className="p-6 min-h-[600px]">
               <TabContent 
                 activeTab={activeTab}
                 videoPrefill={videoPrefill}
@@ -130,7 +124,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Indicador de secuencia secreta (solo para debug) */}
           {keySequence.length > 0 && (
             <div className="fixed bottom-4 right-4 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-xs text-gray-400">
               Secuencia: {keySequence.join(' + ')}
@@ -138,7 +131,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Laboratorio Interno */}
         <InternalLab 
           isVisible={showInternalLab}
           onClose={() => setShowInternalLab(false)}
@@ -148,53 +140,23 @@ export default function App() {
   );
 }
 
-interface TabNavigationProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-}
-
-const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, setActiveTab }) => {
+const TabNavigation: React.FC<{ activeTab: string; setActiveTab: (tab: string) => void; }> = ({ activeTab, setActiveTab }) => {
   const { t } = useLanguage();
   const tabs = [
     { id: 'chat', label: t('nav.fastChat'), icon: '💬' },
     { id: 'agent', label: t('nav.videoAgent'), icon: '🤖', highlight: true },
     { id: 'video', label: t('nav.videoGenerator'), icon: '🎬' },
     { id: 'image', label: t('nav.imageGenerator'), icon: '🖼️' },
-    { id: 'diagnostics', label: t('nav.diagnostics'), icon: '🩺' },
   ];
 
-  const focusTabButton = (id: string) => {
-    const el = document.getElementById(`tab-${id}`);
-    if (el) el.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const key = e.key;
-    if (key === 'ArrowRight' || key === 'ArrowLeft' || key === 'Home' || key === 'End') {
-      e.preventDefault();
-      let nextIndex = index;
-      if (key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
-      if (key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
-      if (key === 'Home') nextIndex = 0;
-      if (key === 'End') nextIndex = tabs.length - 1;
-      const nextTabId = tabs[nextIndex].id;
-      setActiveTab(nextTabId);
-      focusTabButton(nextTabId);
-    }
-  };
-
   return (
-    <div className="flex border-b border-gray-700" role="tablist" aria-label="Primary">
-      {tabs.map((tab, idx) => (
+    <div className="flex border-b border-gray-700" role="tablist">
+      {tabs.map(tab => (
         <button
           key={tab.id}
-          id={`tab-${tab.id}`}
           onClick={() => setActiveTab(tab.id)}
-          onKeyDown={(e) => handleKeyDown(e, idx)}
           role="tab"
           aria-selected={activeTab === tab.id}
-          aria-controls={`panel-${tab.id}`}
-          tabIndex={activeTab === tab.id ? 0 : -1}
           className={`flex-1 px-6 py-4 text-center font-medium transition-colors relative ${
             activeTab === tab.id
               ? tab.highlight 
@@ -205,64 +167,25 @@ const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, setActiveTab }
         >
           <span className="mr-2">{tab.icon}</span>
           {tab.label}
-          {tab.highlight && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-              NEW
-            </span>
-          )}
         </button>
       ))}
     </div>
   );
 };
 
-interface TabContentProps {
-  activeTab: string;
-  videoPrefill: VideoPrefill | null;
-  imagePrefill: ImagePrefill | null;
-  onIntent: (intent: 'video' | 'image', prompt: string, autoGenerate?: boolean) => void;
-  onVideoAgentGenerate: (prompt: string, config?: any) => void;
-  onVideoGenerated: (result: { videoUrl: string; sourceUri: string; prompt: string }) => void;
-  externalVideoEvent: { url: string; sourceUri: string; prompt: string } | null;
-}
-
-const TabContent: React.FC<TabContentProps> = ({
-  activeTab,
-  videoPrefill,
-  imagePrefill,
-  onIntent,
-  onVideoAgentGenerate,
-  onVideoGenerated,
-  externalVideoEvent
-}) => {
-  const panelProps = { role: 'tabpanel', id: `panel-${activeTab}`, 'aria-labelledby': `tab-${activeTab}` } as React.HTMLAttributes<HTMLDivElement>;
-  switch (activeTab) {
-    case 'chat':
-      return <div {...panelProps}><FastChat onIntent={onIntent} /></div>;
-    case 'agent':
-      return <div {...panelProps}><VideoAgent onVideoGenerate={onVideoAgentGenerate} externalEvent={externalVideoEvent} /></div>;
-    case 'video':
-      return (
-        <div {...panelProps}>
-          <VideoGenerator 
-            defaultPrompt={videoPrefill?.prompt}
-            autoGenerate={videoPrefill?.autoGenerate}
-            onResult={onVideoGenerated}
-          />
-        </div>
-      );
-    case 'image':
-      return (
-        <div {...panelProps}>
-          <ImageGenerator 
-            defaultPrompt={imagePrefill?.prompt}
-            autoGenerate={imagePrefill?.autoGenerate}
-          />
-        </div>
-      );
-    case 'diagnostics':
-      return <div {...panelProps}><ApiDiagnostics /></div>;
-    default:
-      return <div {...panelProps}><FastChat onIntent={onIntent} /></div>;
-  }
+const TabContent: React.FC<any> = ({ activeTab, videoPrefill, imagePrefill, onIntent, onVideoAgentGenerate, onVideoGenerated, externalVideoEvent }) => {
+  if (activeTab === 'chat') return <FastChat onIntent={onIntent} />;
+  if (activeTab === 'agent') return <VideoAgent onVideoGenerate={onVideoAgentGenerate} externalEvent={externalVideoEvent} />;
+  if (activeTab === 'video') return (
+    <>
+      <VideoGenerator 
+        defaultPrompt={videoPrefill?.prompt}
+        autoGenerate={videoPrefill?.autoGenerate}
+        onResult={onVideoGenerated}
+      />
+      <ApiDiagnostics />
+    </>
+  );
+  if (activeTab === 'image') return <ImageGenerator defaultPrompt={imagePrefill?.prompt} autoGenerate={imagePrefill?.autoGenerate} />;
+  return <FastChat onIntent={onIntent} />;
 };
