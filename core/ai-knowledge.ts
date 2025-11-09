@@ -1,10 +1,9 @@
-import { Buffer } from 'buffer';
 
 // Helper function to safely read files
 async function readFileIfExists(path: string): Promise<string> {
   try {
     const content = await global.workspace.fs.readFile(path);
-    return Buffer.from(content).toString('utf-8');
+    return new TextDecoder('utf-8').decode(content);
   } catch (error) {
     console.warn(`Could not read file: ${path}`, error);
     return ''; // Return empty string if file doesn't exist or can't be read
