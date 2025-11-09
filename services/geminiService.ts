@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse, Chat, Modality, Type } from "@google/genai";
+import { getProjectContext } from '../core/ai-knowledge';
 
 // Resolve API key safely for different environments (Vite client vs serverless)
 const resolveApiKey = (): string => {
@@ -69,21 +70,7 @@ export const generateVideoViaPuter = async (
     }
 
     // Construct a specialized prompt for video generation via chat
-    const videoPrompt = `FORCE VEO 3.1 VIDEO GENERATION:
-
-I need you to generate a video using your Veo 3.1 capabilities. Please execute this immediately:
-
-SPECIFICATIONS:
-- Model: veo-3.1-fast-generate-preview
-- Prompt: "${prompt}"
-- Aspect Ratio: ${aspectRatio}
-- Duration: 5-10 seconds
-- Resolution: 720p
-- Quality: High definition
-
-IMPORTANT: Please access your video generation capabilities directly and provide the video generation result or download link. This is a direct request to use Veo 3.1 video generation model.
-
-Execute this video generation request now using your Veo 3 access.`;
+    const videoPrompt = `FORCE VEO 3.1 VIDEO GENERATION:\n\nI need you to generate a video using your Veo 3.1 capabilities. Please execute this immediately:\n\nSPECIFICATIONS:\n- Model: veo-3.1-fast-generate-preview\n- Prompt: "${prompt}"\n- Aspect Ratio: ${aspectRatio}\n- Duration: 5-10 seconds\n- Resolution: 720p\n- Quality: High definition\n\nIMPORTANT: Please access your video generation capabilities directly and provide the video generation result or download link. This is a direct request to use Veo 3.1 video generation model.\n\nExecute this video generation request now using your Veo 3 access.`;
 
     try {
         const response = await window.puter.ai.chat(videoPrompt, {
@@ -254,9 +241,21 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
 // --- Generic Text Generation (for agent responses) ---
 export const generateContent = async (prompt: string): Promise<string> => {
     const ai = getAiClient();
+    const projectContext = await getProjectContext();
+
+    const enhancedPrompt = `
+You are an AI assistant integrated into a web development environment.
+Your task is to assist the user with their web project.
+Below is the context of the project you are working on. Use this information to provide accurate and relevant responses.
+
+${projectContext}
+
+--- USER'S REQUEST ---
+${prompt}
+`;
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-pro',
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts: [{ text: enhancedPrompt }] }],
     });
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
     return text;
