@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // TODO: Sustituye por la llamada real a la API de Veo/Gemini Video cuando esté disponible públicamente.
     // Ejemplo orientativo: POST a generativeai.googleapis.com con apiKey en cabecera.
-    const upstreamUrl = 'https://generativeai.googleapis.com/veo:generate';
+    const upstreamUrl = '/api/generate-veo';
     const upstreamResp = await fetch(upstreamUrl, {
       method: 'POST',
       headers: {
@@ -56,4 +56,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Server error', details: String(err?.message || err) });
   }
 }
-
